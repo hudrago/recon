@@ -1,4 +1,5 @@
 export interface RefundGatewayRequest {
+  orgId: string;
   orderId: string;
   amount: number;
   currency: string;

@@ -97,19 +97,27 @@ describe('ExceptionsController (http)', () => {
     await exceptions.ingestReturn(returnRecord, [], now);
     const [exception] = await exceptions.listOpenExceptions('org_1');
 
-    await request(app.getHttpServer()).post(`/orgs/org_1/exceptions/${exception.id}/approve`).expect(200);
+    await request(app.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/approve`)
+      .send({ reason: 'Customer refund approved', amountMinor: 1000, currency: 'EUR' })
+      .expect(200);
 
     await request(app.getHttpServer())
       .post(`/orgs/org_2/exceptions/${exception.id}/actions/refund`)
-      .send({ idempotencyKey: 'k1', orderId: 'order_1', amount: 10, currency: 'EUR' })
+      .send({})
       .expect(403);
+
+    await request(app.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/actions/refund`)
+      .send({ amount: 999999, currency: 'EUR' })
+      .expect(400);
 
     const response = await request(app.getHttpServer())
       .post(`/orgs/org_1/exceptions/${exception.id}/actions/refund`)
-      .send({ idempotencyKey: 'k1', orderId: 'order_1', amount: 10, currency: 'EUR' })
+      .send({})
       .expect(200);
 
-    expect(response.body.refundId).toBe('refund_k1');
-    expect((await exceptions.getAuditLog('org_1'))[0]?.actor).toBe('user_1');
+    expect(response.body.refundId).toBe('refund_refund:REFUND_MISSING:org_1:ret_http_1');
+    expect((await exceptions.getAuditLog('org_1')).map((entry) => entry.actor)).toEqual(['user_1', 'user_1']);
   });
 });

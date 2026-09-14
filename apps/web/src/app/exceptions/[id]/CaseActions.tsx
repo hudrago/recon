@@ -11,7 +11,7 @@ interface CaseActionsProps {
   status: string;
 }
 
-export function CaseActions({ orgId, exceptionId, orderId, status }: CaseActionsProps) {
+export function CaseActions({ orgId, exceptionId, orderId: _orderId, status }: CaseActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reason, setReason] = useState('');
@@ -39,36 +39,19 @@ export function CaseActions({ orgId, exceptionId, orderId, status }: CaseActions
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
       {status === 'open' && (
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => runAction(() => approveException(orgId, exceptionId))}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          Approve
-        </button>
+        <div className="flex items-end gap-3">
+          <label className="flex flex-col gap-1 text-sm text-text-secondary">
+            Approved refund amount (EUR)
+            <input required type="number" step="0.01" min="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-text-primary" />
+          </label>
+          <button type="button" disabled={isPending || reason.trim().length === 0 || amount.length === 0} onClick={() => runAction(() => approveException(orgId, exceptionId, reason, amount))} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            Approve
+          </button>
+        </div>
       )}
 
       {status === 'approved' && (
-        <form
-          className="flex items-end gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            runAction(() => executeRefundAction(orgId, exceptionId, orderId, amount));
-          }}
-        >
-          <label className="flex flex-col gap-1 text-sm text-text-secondary">
-            Refund amount (EUR) — entered manually, order total isn&apos;t wired in yet
-            <input
-              required
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-2 text-text-primary"
-            />
-          </label>
+        <form onSubmit={(event) => { event.preventDefault(); runAction(() => executeRefundAction(orgId, exceptionId)); }}>
           <button
             type="submit"
             disabled={isPending}
@@ -81,7 +64,7 @@ export function CaseActions({ orgId, exceptionId, orderId, status }: CaseActions
 
       <div className="mt-4 flex items-end gap-3">
         <label className="flex flex-col gap-1 text-sm text-text-secondary">
-          Dismiss reason
+          Decision reason
           <input
             value={reason}
             onChange={(event) => setReason(event.target.value)}

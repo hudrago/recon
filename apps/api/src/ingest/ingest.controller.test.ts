@@ -11,7 +11,10 @@ import { IngestController } from './ingest.controller';
 describe('IngestController Shopify webhook (http)', () => {
   let app: INestApplication;
   const ingestReturn = vi.fn().mockResolvedValue(null);
+  const ingestOrder = vi.fn().mockResolvedValue(null);
+  const ingestRefund = vi.fn().mockResolvedValue(null);
   const claimWebhook = vi.fn().mockResolvedValue(true);
+  const completeWebhook = vi.fn().mockResolvedValue(undefined);
   const releaseWebhook = vi.fn().mockResolvedValue(undefined);
   const secret = 'test-shopify-secret';
   const payload = JSON.stringify({
@@ -26,11 +29,14 @@ describe('IngestController Shopify webhook (http)', () => {
     process.env.SHOPIFY_ORG_ID = 'org_1';
     process.env.SHOPIFY_SHOP_DOMAIN = 'recon-test.myshopify.com';
     ingestReturn.mockClear();
+    ingestOrder.mockClear();
+    ingestRefund.mockClear();
     claimWebhook.mockClear().mockResolvedValue(true);
+    completeWebhook.mockClear();
     releaseWebhook.mockClear();
     const moduleRef = await Test.createTestingModule({
       controllers: [IngestController],
-      providers: [{ provide: ExceptionService, useValue: { claimWebhook, releaseWebhook, ingestReturn, ingestShipment: vi.fn() } }],
+      providers: [{ provide: ExceptionService, useValue: { claimWebhook, completeWebhook, releaseWebhook, ingestReturn, ingestOrder, ingestRefund, ingestShipment: vi.fn() } }],
     })
       .overrideGuard(OrgGuard)
       .useValue({ canActivate: () => true })
@@ -90,6 +96,48 @@ describe('IngestController Shopify webhook (http)', () => {
 
     expect(response.body.duplicate).toBe(true);
     expect(ingestReturn).not.toHaveBeenCalled();
+  });
+
+  it('preserves a large Shopify order id when ingesting a refund', async () => {
+    const refundPayload = '{"id":890088186047892319,"admin_graphql_api_id":"gid://shopify/Refund/890088186047892319","order_id":820982911946154508,"processed_at":"2026-09-14T11:00:00.000Z","refund_line_items":[{"subtotal_set":{"shop_money":{"amount":"12.50","currency_code":"EUR"}}}],"transactions":[{"kind":"refund","status":"success","amount":"12.50","currency":"EUR"}]}';
+    const hmac = createHmac('sha256', secret).update(refundPayload).digest('base64');
+
+    await request(app.getHttpServer())
+      .post('/orgs/org_1/ingest/shopify/refunds')
+      .set('content-type', 'application/json')
+      .set('x-shopify-hmac-sha256', hmac)
+      .set('x-shopify-webhook-id', 'webhook_refund_1')
+      .set('x-shopify-shop-domain', 'recon-test.myshopify.com')
+      .send(refundPayload)
+      .expect(200);
+
+    expect(ingestRefund).toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: '820982911946154508' }),
+      [],
+      expect.any(Date),
+    );
+  });
+
+  it('ingests a signed paid-order webhook', async () => {
+    const orderPayload = JSON.stringify({
+      id: '820982911946154508',
+      admin_graphql_api_id: 'gid://shopify/Order/820982911946154508',
+      currency: 'EUR',
+      total_price: '104.95',
+      processed_at: '2026-09-14T10:00:00.000Z',
+    });
+    const hmac = createHmac('sha256', secret).update(orderPayload).digest('base64');
+
+    await request(app.getHttpServer())
+      .post('/orgs/org_1/ingest/shopify/orders/paid')
+      .set('content-type', 'application/json')
+      .set('x-shopify-hmac-sha256', hmac)
+      .set('x-shopify-webhook-id', 'webhook_order_1')
+      .set('x-shopify-shop-domain', 'recon-test.myshopify.com')
+      .send(orderPayload)
+      .expect(200);
+
+    expect(ingestOrder).toHaveBeenCalledOnce();
   });
 
   it('rejects a valid signature from a shop not mapped to the URL organization', async () => {

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "executed_actions_exceptionId_key" ON "executed_actions"("exceptionId");

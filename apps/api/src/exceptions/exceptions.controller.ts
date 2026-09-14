@@ -7,13 +7,15 @@ import { OrgGuard } from '../auth/org.guard';
 import { ExceptionService } from '../exceptionService';
 
 const dismissSchema = z.object({ reason: z.string().min(1) });
-
-const refundActionSchema = z.object({
-  idempotencyKey: z.string().min(1),
-  orderId: z.string().min(1),
-  amount: z.number().positive(),
-  currency: z.string().length(3),
+const approveSchema = z.object({
+  reason: z.string().min(1),
+  amountMinor: z.number().int().positive().safe().optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+}).refine((body) => (body.amountMinor === undefined) === (body.currency === undefined), {
+  message: 'Refund amount and currency must be provided together',
 });
+
+const refundActionSchema = z.object({}).strict();
 
 @Controller('orgs/:orgId/exceptions')
 @UseGuards(OrgGuard)
@@ -34,9 +36,19 @@ export class ExceptionsController {
 
   @Post(':exceptionId/approve')
   @HttpCode(200)
-  async approve(@Param('orgId') orgId: string, @Param('exceptionId') exceptionId: string) {
+  async approve(
+    @Param('orgId') orgId: string,
+    @Param('exceptionId') exceptionId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body(new ZodValidationPipe(approveSchema)) body: z.infer<typeof approveSchema>,
+  ) {
     await this.getExceptionForOrg(exceptionId, orgId);
-    await this.exceptions.approve(exceptionId);
+    await this.exceptions.approve(
+      exceptionId,
+      request.auth!.user.id,
+      body.reason,
+      body.amountMinor !== undefined && body.currency ? { amountMinor: body.amountMinor, currency: body.currency } : undefined,
+    );
     return { status: 'approved' };
   }
 
@@ -59,19 +71,10 @@ export class ExceptionsController {
     @Param('orgId') orgId: string,
     @Param('exceptionId') exceptionId: string,
     @Req() request: AuthenticatedRequest,
-    @Body(new ZodValidationPipe(refundActionSchema)) body: z.infer<typeof refundActionSchema>,
+    @Body(new ZodValidationPipe(refundActionSchema)) _body: z.infer<typeof refundActionSchema>,
   ) {
     await this.getExceptionForOrg(exceptionId, orgId);
-    return this.exceptions.executeRefund(
-      {
-        idempotencyKey: body.idempotencyKey,
-        exceptionId,
-        orderId: body.orderId,
-        amount: body.amount,
-        currency: body.currency,
-      },
-      request.auth!.user.id,
-    );
+    return this.exceptions.executeRefund({ exceptionId }, request.auth!.user.id);
   }
 
   // Every endpoint confirms the exception actually belongs to the org in the URL, not just that it exists.

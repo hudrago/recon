@@ -20,6 +20,7 @@
     "dotenv": "^16.4.0",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
+    "json-bigint": "^1.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
     "zod": "^3.23.0"
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@nestjs/testing": "^10.4.0",
     "@types/express": "^5.0.6",
+    "@types/json-bigint": "^1.0.4",
     "@types/supertest": "^6.0.0",
     "prisma": "^5.20.0",
     "supertest": "^7.0.0",

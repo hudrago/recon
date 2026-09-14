@@ -10,6 +10,11 @@ export interface ExecutedActionResult {
   refundId: string;
 }
 
+export type ActionClaim =
+  | { status: 'claimed' }
+  | { status: 'in_progress' }
+  | { status: 'succeeded'; result: ExecutedActionResult };
+
 export interface AuditLogEntry {
   orgId: string;
   actor: string;
@@ -24,15 +29,22 @@ export const EXCEPTION_STORE = Symbol('EXCEPTION_STORE');
 
 export interface ExceptionStore {
   claimWebhook(provider: string, eventId: string, orgId: string): Promise<boolean>;
+  completeWebhook(provider: string, eventId: string): Promise<void>;
   releaseWebhook(provider: string, eventId: string): Promise<void>;
   get(exceptionId: string): Promise<DomainException | undefined>;
   save(exception: DomainException): Promise<void>;
+  saveWithAudit(exception: DomainException, entry: AuditLogEntry): Promise<void>;
   listOpen(orgId: string): Promise<DomainException[]>;
   savePendingEvaluation(evaluation: PendingEvaluation): Promise<void>;
   listDueEvaluations(now: Date): Promise<PendingEvaluation[]>;
   deletePendingEvaluation(evaluationId: string): Promise<void>;
-  getExecutedAction(idempotencyKey: string): Promise<ExecutedActionResult | undefined>;
-  saveExecutedAction(idempotencyKey: string, exceptionId: string, result: ExecutedActionResult): Promise<void>;
+  saveRefund(refund: Refund): Promise<void>;
+  listRefunds(orgId: string, orderId: string): Promise<Refund[]>;
+  cancelPendingRefundEvaluation(orgId: string, orderId: string): Promise<void>;
+  findRefundMissing(orgId: string, orderId: string): Promise<DomainException | undefined>;
+  claimAction(idempotencyKey: string, exceptionId: string, orgId: string, orderId: string): Promise<ActionClaim>;
+  completeAction(idempotencyKey: string, result: ExecutedActionResult, refund: Refund, exception: DomainException, entry: AuditLogEntry): Promise<void>;
+  failAction(idempotencyKey: string, error: string): Promise<void>;
   appendAuditLog(entry: AuditLogEntry): Promise<void>;
   getAuditLog(orgId: string): Promise<AuditLogEntry[]>;
 }

@@ -11,7 +11,7 @@ export interface InvoiceMissingInput {
 
 // Deterministic per order, so re-running the rule on the same event never creates a duplicate exception.
 export function invoiceMissingExceptionId(order: Order): string {
-  return `INVOICE_MISSING:${order.id}`;
+  return `INVOICE_MISSING:${order.orgId}:${order.id}`;
 }
 
 export function evaluateInvoiceMissing({ order, invoices, now }: InvoiceMissingInput): DomainException | null {

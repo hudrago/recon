@@ -11,7 +11,7 @@ export interface RefundMissingInput {
 
 // Deterministic per return, so re-running the rule on the same event never creates a duplicate exception.
 export function refundMissingExceptionId(returnRecord: ReturnRecord): string {
-  return `REFUND_MISSING:${returnRecord.id}`;
+  return `REFUND_MISSING:${returnRecord.orgId}:${returnRecord.id}`;
 }
 
 export function evaluateRefundMissing({ returnRecord, refunds, now }: RefundMissingInput): DomainException | null {

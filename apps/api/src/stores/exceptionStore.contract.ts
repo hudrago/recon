@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { DomainException } from '@recon/domain';
+import type { DomainException, Refund } from '@recon/domain';
 import type { ExceptionStore, PendingEvaluation } from '../exceptionStore';
 
 // Shared behavior contract for every ExceptionStore implementation. Run this against BOTH
@@ -41,6 +41,8 @@ export function runExceptionStoreContract(
       const orgId = `contract_${randomUUID()}`;
 
       expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(true);
+      expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(false);
+      await store.completeWebhook('shopify', eventId);
       expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(false);
       await store.releaseWebhook('shopify', eventId);
       expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(true);
@@ -117,17 +119,86 @@ export function runExceptionStoreContract(
       expect(await store.listDueEvaluations(new Date())).not.toContainEqual(evaluation);
     });
 
-    it('returns undefined for an executed action that was never saved', async () => {
-      expect(await store.getExecutedAction(`contract_${randomUUID()}`)).toBeUndefined();
+    it('upserts and lists refunds by organization and order', async () => {
+      const orgId = `contract_${randomUUID()}`;
+      const orderId = `contract_${randomUUID()}`;
+      const refund: Refund = {
+        id: `contract_${randomUUID()}`,
+        orgId,
+        orderId,
+        amount: 12.5,
+        currency: 'EUR',
+        issuedAt: new Date().toISOString(),
+      };
+      await store.saveRefund(refund);
+      await store.saveRefund(refund);
+
+      expect(await store.listRefunds(orgId, orderId)).toEqual([refund]);
+      expect(await store.listRefunds(`contract_${randomUUID()}`, orderId)).toEqual([]);
     });
 
-    it('saves and retrieves an executed action by idempotency key', async () => {
+    it('prevents an outbound claim when an inbound refund reserved the order first', async () => {
+      const exception = makeException();
+      const refund: Refund = {
+        id: `contract_${randomUUID()}`,
+        orgId: exception.orgId,
+        orderId: exception.orderId,
+        amount: 10,
+        currency: 'EUR',
+        issuedAt: new Date().toISOString(),
+      };
+      await store.saveRefund(refund);
+
+      expect(await store.claimAction(`contract_${randomUUID()}`, exception.id, exception.orgId, exception.orderId))
+        .toEqual({ status: 'succeeded', result: { refundId: refund.id } });
+    });
+
+    it('claims, completes, and replays an action by idempotency key', async () => {
       const idempotencyKey = `contract_${randomUUID()}`;
       const exception = makeException();
       await store.save(exception);
-      await store.saveExecutedAction(idempotencyKey, exception.id, { refundId: `contract_${randomUUID()}` });
-      const result = await store.getExecutedAction(idempotencyKey);
-      expect(result?.refundId).toBeDefined();
+      expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'claimed' });
+      expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'in_progress' });
+
+      const result = { refundId: `contract_${randomUUID()}` };
+      const resolved = { ...exception, status: 'resolved' as const };
+      const audit = { orgId: exception.orgId, actor: 'operator', reason: 'refund', before: exception, after: resolved, at: new Date().toISOString() };
+      const refund = { id: `contract_${randomUUID()}`, orgId: exception.orgId, orderId: exception.orderId, amount: 10, currency: 'EUR', issuedAt: new Date().toISOString() };
+      await store.completeAction(idempotencyKey, result, refund, resolved, audit);
+
+      expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'succeeded', result });
+      expect(await store.listRefunds(exception.orgId, exception.orderId)).toContainEqual(refund);
+    });
+
+    it('allows a failed action to be claimed for retry', async () => {
+      const idempotencyKey = `contract_${randomUUID()}`;
+      const exception = makeException();
+      await store.save(exception);
+      await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId);
+      await store.failAction(idempotencyKey, 'provider unavailable');
+      expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'claimed' });
+    });
+
+    it('replays the existing result for another exception on the same organization order', async () => {
+      const first = makeException();
+      const second = makeException({ orgId: first.orgId, orderId: first.orderId });
+      await store.save(first);
+      await store.save(second);
+      const firstKey = `contract_${randomUUID()}`;
+      expect(await store.claimAction(firstKey, first.id, first.orgId, first.orderId)).toEqual({ status: 'claimed' });
+      const result = { refundId: `contract_${randomUUID()}` };
+      const refund = { id: result.refundId, orgId: first.orgId, orderId: first.orderId, amount: 10, currency: 'EUR', issuedAt: new Date().toISOString() };
+      const resolved = { ...first, status: 'resolved' as const };
+      await store.completeAction(firstKey, result, refund, resolved, {
+        orgId: first.orgId,
+        actor: 'operator',
+        reason: 'refund',
+        before: first,
+        after: resolved,
+        at: new Date().toISOString(),
+      });
+
+      expect(await store.claimAction(`contract_${randomUUID()}`, second.id, second.orgId, second.orderId)).toEqual({ status: 'succeeded', result });
     });
 
     it('appends and retrieves audit log entries scoped to an org, in order', async () => {

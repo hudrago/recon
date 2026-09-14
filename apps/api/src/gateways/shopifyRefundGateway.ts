@@ -14,7 +14,7 @@ interface OrderTransactionNode {
 }
 
 interface OrderTransactionsResponse {
-  order: { transactions: OrderTransactionNode[] } | null;
+  order: { currencyCode: string; transactions: OrderTransactionNode[] } | null;
 }
 
 interface RefundCreateResponse {
@@ -47,6 +47,7 @@ export class ShopifyRefundGateway implements RefundGateway {
   private cachedToken: { value: string; expiresAt: number } | null = null;
 
   constructor(
+    private readonly orgId: string,
     private readonly shopDomain: string,
     private readonly clientId: string,
     private readonly clientSecret: string,
@@ -56,8 +57,9 @@ export class ShopifyRefundGateway implements RefundGateway {
   }
 
   async createRefund(request: RefundGatewayRequest): Promise<RefundGatewayResult> {
+    if (request.orgId !== this.orgId) throw new Error('Shopify installation is not mapped to this organization');
     const orderGid = toOrderGid(request.orderId);
-    const parentTransaction = await this.findRefundableTransaction(orderGid);
+    const parentTransaction = await this.findRefundableTransaction(orderGid, request.currency);
     const idempotencyKeyLiteral = JSON.stringify(request.idempotencyKey);
 
     const query = `
@@ -95,10 +97,11 @@ export class ShopifyRefundGateway implements RefundGateway {
     return { refundId: refund.id };
   }
 
-  private async findRefundableTransaction(orderGid: string): Promise<{ id: string; gateway: string }> {
+  private async findRefundableTransaction(orderGid: string, approvedCurrency: string): Promise<{ id: string; gateway: string }> {
     const query = `
       query OrderTransactions($id: ID!) {
         order(id: $id) {
+          currencyCode
           transactions(first: 10) {
             id kind status gateway
           }
@@ -106,10 +109,12 @@ export class ShopifyRefundGateway implements RefundGateway {
       }
     `;
     const result = await this.graphql<OrderTransactionsResponse>(query, { id: orderGid });
-    const nodes = result.order?.transactions ?? [];
-    const parent = nodes.find(
-      (transaction) => (transaction.kind === 'SALE' || transaction.kind === 'CAPTURE') && transaction.status === 'SUCCESS',
-    );
+    if (result.order?.currencyCode !== approvedCurrency) {
+      throw new Error(`Approved currency ${approvedCurrency} does not match Shopify order currency ${result.order?.currencyCode ?? 'unknown'}`);
+    }
+    const parent = result.order.transactions
+      .filter((transaction) => (transaction.kind === 'SALE' || transaction.kind === 'CAPTURE') && transaction.status === 'SUCCESS')
+      .sort((left, right) => BigInt(left.id.split('/').at(-1)!) < BigInt(right.id.split('/').at(-1)!) ? -1 : 1)[0];
     if (!parent) {
       throw new Error(`No refundable transaction found on order ${orderGid}`);
     }

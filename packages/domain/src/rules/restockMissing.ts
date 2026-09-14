@@ -12,7 +12,7 @@ export interface RestockMissingInput {
 
 // Deterministic per refund, so re-running the rule on the same event never creates a duplicate exception.
 export function restockMissingExceptionId(refund: Refund): string {
-  return `RESTOCK_MISSING:${refund.id}`;
+  return `RESTOCK_MISSING:${refund.orgId}:${refund.id}`;
 }
 
 export function evaluateRestockMissing({ refund, adjustments, now }: RestockMissingInput): DomainException | null {

@@ -42,7 +42,7 @@ const useShopify = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && process.env.SHOPIF
       ? {
           provide: REFUND_GATEWAY,
           useFactory: () =>
-            new ShopifyRefundGateway(process.env.SHOPIFY_SHOP_DOMAIN!, process.env.SHOPIFY_CLIENT_ID!, process.env.SHOPIFY_CLIENT_SECRET!),
+            new ShopifyRefundGateway(process.env.SHOPIFY_ORG_ID!, process.env.SHOPIFY_SHOP_DOMAIN!, process.env.SHOPIFY_CLIENT_ID!, process.env.SHOPIFY_CLIENT_SECRET!),
         }
       : { provide: REFUND_GATEWAY, useClass: FakeRefundGateway },
     ExceptionService,

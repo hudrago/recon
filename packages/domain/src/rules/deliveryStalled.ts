@@ -12,7 +12,7 @@ export interface DeliveryStalledInput {
 
 // Deterministic per shipment, so re-running the rule on the same event never creates a duplicate exception.
 export function deliveryStalledExceptionId(shipment: Shipment): string {
-  return `DELIVERY_STALLED:${shipment.id}`;
+  return `DELIVERY_STALLED:${shipment.orgId}:${shipment.id}`;
 }
 
 export function evaluateDeliveryStalled({ shipment, now }: DeliveryStalledInput): DomainException | null {

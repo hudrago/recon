@@ -13,7 +13,7 @@ describe('ShopifyRefundGateway', () => {
   let gateway: ShopifyRefundGateway;
 
   beforeEach(() => {
-    gateway = new ShopifyRefundGateway('test-shop.myshopify.com', 'client_id_test', 'client_secret_test');
+    gateway = new ShopifyRefundGateway('org_1', 'test-shop.myshopify.com', 'client_id_test', 'client_secret_test');
     vi.stubGlobal('fetch', vi.fn());
   });
 
@@ -29,6 +29,7 @@ describe('ShopifyRefundGateway', () => {
         jsonResponse({
           data: {
             order: {
+              currencyCode: 'EUR',
               transactions: [{ id: 'gid://shopify/OrderTransaction/1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }],
             },
           },
@@ -36,7 +37,7 @@ describe('ShopifyRefundGateway', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ data: { refundCreate: { refund: { id: 'gid://shopify/Refund/99' }, userErrors: [] } } }));
 
-    const result = await gateway.createRefund({ orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' });
+    const result = await gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' });
 
     expect(result).toEqual({ refundId: 'gid://shopify/Refund/99' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -64,13 +65,13 @@ describe('ShopifyRefundGateway', () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(tokenResponse())
-      .mockResolvedValueOnce(jsonResponse({ data: { order: { transactions: [{ id: 'tx_1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }] } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { order: { currencyCode: 'EUR', transactions: [{ id: 'gid://shopify/OrderTransaction/1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }] } } }))
       .mockResolvedValueOnce(jsonResponse({ data: { refundCreate: { refund: { id: 'gid://shopify/Refund/1' }, userErrors: [] } } }))
-      .mockResolvedValueOnce(jsonResponse({ data: { order: { transactions: [{ id: 'tx_1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }] } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { order: { currencyCode: 'EUR', transactions: [{ id: 'gid://shopify/OrderTransaction/1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }] } } }))
       .mockResolvedValueOnce(jsonResponse({ data: { refundCreate: { refund: { id: 'gid://shopify/Refund/2' }, userErrors: [] } } }));
 
-    await gateway.createRefund({ orderId: '123', amount: 5, currency: 'EUR', idempotencyKey: 'key_a' });
-    await gateway.createRefund({ orderId: '456', amount: 5, currency: 'EUR', idempotencyKey: 'key_b' });
+    await gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 5, currency: 'EUR', idempotencyKey: 'key_a' });
+    await gateway.createRefund({ orgId: 'org_1', orderId: '456', amount: 5, currency: 'EUR', idempotencyKey: 'key_b' });
 
     // 1 token exchange + 2 calls per refund (transaction lookup + refundCreate) = 5, not 6.
     expect(fetchMock).toHaveBeenCalledTimes(5);
@@ -78,9 +79,9 @@ describe('ShopifyRefundGateway', () => {
 
   it('throws when the order has no refundable transaction', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
-    fetchMock.mockResolvedValueOnce(tokenResponse()).mockResolvedValueOnce(jsonResponse({ data: { order: { transactions: [] } } }));
+    fetchMock.mockResolvedValueOnce(tokenResponse()).mockResolvedValueOnce(jsonResponse({ data: { order: { currencyCode: 'EUR', transactions: [] } } }));
 
-    await expect(gateway.createRefund({ orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' })).rejects.toThrow(
+    await expect(gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' })).rejects.toThrow(
       /No refundable transaction/,
     );
   });
@@ -93,6 +94,7 @@ describe('ShopifyRefundGateway', () => {
         jsonResponse({
           data: {
             order: {
+              currencyCode: 'EUR',
               transactions: [{ id: 'gid://shopify/OrderTransaction/1', kind: 'SALE', status: 'SUCCESS', gateway: 'bogus' }],
             },
           },
@@ -100,17 +102,34 @@ describe('ShopifyRefundGateway', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ data: { refundCreate: { refund: null, userErrors: [{ field: ['amount'], message: 'Amount too large' }] } } }));
 
-    await expect(gateway.createRefund({ orderId: '123', amount: 999999, currency: 'EUR', idempotencyKey: 'key_2' })).rejects.toThrow(
+    await expect(gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 999999, currency: 'EUR', idempotencyKey: 'key_2' })).rejects.toThrow(
       /Amount too large/,
     );
+  });
+
+  it('rejects an approved currency that differs from the Shopify order', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ data: { order: { currencyCode: 'USD', transactions: [] } } }));
+
+    await expect(gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_currency' }))
+      .rejects.toThrow(/does not match/);
   });
 
   it('throws when the token exchange itself fails', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'invalid_client' }, false));
 
-    await expect(gateway.createRefund({ orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' })).rejects.toThrow(
+    await expect(gateway.createRefund({ orgId: 'org_1', orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_1' })).rejects.toThrow(
       /Shopify token exchange failed/,
     );
+  });
+
+  it('rejects an organization that is not mapped to this Shopify installation', async () => {
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    await expect(gateway.createRefund({ orgId: 'org_2', orderId: '123', amount: 10, currency: 'EUR', idempotencyKey: 'key_org' }))
+      .rejects.toThrow(/not mapped/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

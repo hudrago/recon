@@ -142,11 +142,26 @@ model PendingEvaluation {
   @@map("pending_evaluations")
 }
 
+model RefundRecord {
+  id       String
+  orgId    String
+  orderId  String
+  amount   Float
+  currency String
+  issuedAt DateTime
+
+  @@id([orgId, id])
+  @@index([orgId, orderId])
+  @@map("refund_records")
+}
+
 model WebhookReceipt {
   provider   String
   eventId    String
   orgId      String
+  status     String   @default("PROCESSING")
   receivedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@id([provider, eventId])
   @@index([orgId, receivedAt])
@@ -155,11 +170,19 @@ model WebhookReceipt {
 
 model ExecutedAction {
   idempotencyKey String   @id
-  exceptionId    String
-  result         Json
+  exceptionId    String   @unique
+  orgId          String?
+  orderId        String?
+  actionKind     String?
+  status         String
+  result         Json?
+  error          String?
+  attempts       Int      @default(1)
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([exceptionId])
+  @@unique([orgId, orderId, actionKind])
   @@map("executed_actions")
 }
 

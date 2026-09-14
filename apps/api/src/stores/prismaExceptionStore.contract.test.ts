@@ -22,7 +22,8 @@ describe.skipIf(!process.env.DATABASE_URL)('PrismaExceptionStore (live database)
       await prisma.webhookReceipt.deleteMany({ where: { eventId: { startsWith: 'contract_' } } });
       await prisma.exceptionRecord.deleteMany({ where: { id: { startsWith: 'contract_' } } });
       await prisma.pendingEvaluation.deleteMany({ where: { id: { startsWith: 'contract_' } } });
-      await prisma.executedAction.deleteMany({ where: { idempotencyKey: { startsWith: 'contract_' } } });
+      await prisma.refundRecord.deleteMany({ where: { id: { startsWith: 'contract_' } } });
+      await prisma.executedAction.deleteMany({ where: { OR: [{ idempotencyKey: { startsWith: 'contract_' } }, { orgId: { startsWith: 'contract_' } }] } });
       await prisma.auditLogEntry.deleteMany({ where: { orgId: { startsWith: 'contract_' } } });
       await prisma.onModuleDestroy();
     },
