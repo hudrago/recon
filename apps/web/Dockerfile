@@ -22,6 +22,7 @@ RUN pnpm --filter @recon/web run build
 
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
 
-CMD ["pnpm", "--filter", "@recon/web", "run", "start"]
+CMD ["pnpm", "--dir", "apps/web", "run", "start"]
