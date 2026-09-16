@@ -22,7 +22,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialTheme = themeCookie === 'light' || themeCookie === 'dark' || themeCookie === 'system' ? themeCookie : 'system';
 
   return (
-    <html lang={locale === 'pt' ? 'pt-PT' : 'en'} data-theme={initialTheme === 'system' ? undefined : initialTheme} suppressHydrationWarning>
+    <html lang={locale === 'pt' ? 'pt-PT' : 'en'} data-theme={initialTheme === 'system' ? undefined : initialTheme} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>
         <PreferencesProvider locale={locale} initialTheme={initialTheme}>
