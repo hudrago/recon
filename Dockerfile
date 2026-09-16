@@ -21,8 +21,6 @@ COPY apps/web apps/web
 COPY packages packages
 RUN pnpm --filter @recon/api run prisma:generate
 
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter @recon/web run build
 
 ENV NODE_ENV=production
