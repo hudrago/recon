@@ -114,15 +114,24 @@ export class PrismaExceptionStore implements ExceptionStore {
   }
 
   async savePendingEvaluation(evaluation: PendingEvaluation): Promise<void> {
+    const orgId = 'returnRecord' in evaluation
+      ? evaluation.returnRecord.orgId
+      : 'order' in evaluation
+        ? evaluation.order.orgId
+        : 'refund' in evaluation
+          ? evaluation.refund.orgId
+          : evaluation.shipment.orgId;
     await this.prisma.pendingEvaluation.upsert({
       where: { id: evaluation.id },
       create: {
         id: evaluation.id,
+        orgId,
         kind: evaluation.kind,
         dueAt: new Date(evaluation.dueAt),
         payload: evaluation as object,
       },
       update: {
+        orgId,
         kind: evaluation.kind,
         dueAt: new Date(evaluation.dueAt),
         payload: evaluation as object,
@@ -170,7 +179,7 @@ export class PrismaExceptionStore implements ExceptionStore {
   }
 
   async cancelPendingRefundEvaluation(orgId: string, orderId: string): Promise<void> {
-    const records = await this.prisma.pendingEvaluation.findMany({ where: { kind: 'refund-missing' } });
+    const records = await this.prisma.pendingEvaluation.findMany({ where: { orgId, kind: 'refund-missing' } });
     const ids = records
       .filter((record) => {
         const evaluation = record.payload as unknown as PendingEvaluation;

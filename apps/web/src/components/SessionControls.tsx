@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
-import { Building2, LogOut } from 'lucide-react';
+import { Building2, LogOut, Settings } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { Brand } from './Brand';
 import { HeaderSelectMenu } from './HeaderSelectMenu';
@@ -17,7 +17,8 @@ export function SessionControls() {
   const { data: organizations } = authClient.useListOrganizations();
   const { t } = usePreferences();
 
-  if (!session || !pathname.startsWith('/exceptions')) return null;
+  const isAppRoute = pathname.startsWith('/exceptions') || pathname.startsWith('/settings');
+  if (!session || !isAppRoute) return null;
 
   async function switchOrganization(organizationId: string) {
     await authClient.organization.setActive({ organizationId });
@@ -35,7 +36,7 @@ export function SessionControls() {
     <header className="app-header">
       <div className="app-header-inner">
         <Brand compact />
-        <nav aria-label={t('session.navigation')}><Link href="/exceptions" aria-current="page">{t('session.exceptions')}</Link></nav>
+        <nav aria-label={t('session.navigation')}><Link href="/exceptions" aria-current={pathname.startsWith('/exceptions') ? 'page' : undefined}>{t('session.exceptions')}</Link><Link href="/settings" aria-current={pathname.startsWith('/settings') ? 'page' : undefined}><Settings size={16} aria-hidden="true" />{t('session.settings')}</Link></nav>
         <div className="session-actions">
           <PreferencesControls />
           {organizations && organizations.length > 0 ? (

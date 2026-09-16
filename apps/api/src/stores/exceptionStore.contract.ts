@@ -11,6 +11,7 @@ export function runExceptionStoreContract(
   storeName: string,
   setup: () => Promise<ExceptionStore> | ExceptionStore,
   teardown?: (store: ExceptionStore) => Promise<void> | void,
+  prepareOrganization?: (orgId: string) => Promise<void> | void,
 ) {
   describe(`ExceptionStore contract: ${storeName}`, () => {
     let store: ExceptionStore;
@@ -36,9 +37,14 @@ export function runExceptionStoreContract(
       };
     }
 
+    async function prepare(...orgIds: string[]) {
+      if (prepareOrganization) await Promise.all(orgIds.map((orgId) => prepareOrganization(orgId)));
+    }
+
     it('claims a provider webhook once and permits retry after release', async () => {
       const eventId = `contract_${randomUUID()}`;
       const orgId = `contract_${randomUUID()}`;
+      await prepare(orgId);
 
       expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(true);
       expect(await store.claimWebhook('shopify', eventId, orgId)).toBe(false);
@@ -54,12 +60,14 @@ export function runExceptionStoreContract(
 
     it('saves and retrieves an exception by id', async () => {
       const exception = makeException();
+      await prepare(exception.orgId);
       await store.save(exception);
       expect(await store.get(exception.id)).toEqual(exception);
     });
 
     it('updates an existing exception on save instead of duplicating it', async () => {
       const exception = makeException();
+      await prepare(exception.orgId);
       await store.save(exception);
       await store.save({ ...exception, status: 'dismissed' });
       expect((await store.get(exception.id))?.status).toBe('dismissed');
@@ -70,6 +78,7 @@ export function runExceptionStoreContract(
       const openException = makeException({ orgId, status: 'open' });
       const dismissedException = makeException({ orgId, status: 'dismissed' });
       const otherOrgException = makeException({ status: 'open' });
+      await prepare(orgId, otherOrgException.orgId);
       await store.save(openException);
       await store.save(dismissedException);
       await store.save(otherOrgException);
@@ -93,6 +102,7 @@ export function runExceptionStoreContract(
           lastStatusChangeAt: new Date().toISOString(),
         },
       };
+      await prepare(evaluation.shipment.orgId);
 
       await store.savePendingEvaluation({ ...evaluation, dueAt: new Date(Date.now() + 60_000).toISOString() });
       await store.savePendingEvaluation(evaluation);
@@ -113,6 +123,7 @@ export function runExceptionStoreContract(
           lastStatusChangeAt: new Date().toISOString(),
         },
       };
+      await prepare(evaluation.shipment.orgId);
       await store.savePendingEvaluation(evaluation);
       await store.deletePendingEvaluation(evaluation.id);
 
@@ -130,6 +141,7 @@ export function runExceptionStoreContract(
         currency: 'EUR',
         issuedAt: new Date().toISOString(),
       };
+      await prepare(orgId);
       await store.saveRefund(refund);
       await store.saveRefund(refund);
 
@@ -147,6 +159,7 @@ export function runExceptionStoreContract(
         currency: 'EUR',
         issuedAt: new Date().toISOString(),
       };
+      await prepare(exception.orgId);
       await store.saveRefund(refund);
 
       expect(await store.claimAction(`contract_${randomUUID()}`, exception.id, exception.orgId, exception.orderId))
@@ -156,6 +169,7 @@ export function runExceptionStoreContract(
     it('claims, completes, and replays an action by idempotency key', async () => {
       const idempotencyKey = `contract_${randomUUID()}`;
       const exception = makeException();
+      await prepare(exception.orgId);
       await store.save(exception);
       expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'claimed' });
       expect(await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId)).toEqual({ status: 'in_progress' });
@@ -173,6 +187,7 @@ export function runExceptionStoreContract(
     it('allows a failed action to be claimed for retry', async () => {
       const idempotencyKey = `contract_${randomUUID()}`;
       const exception = makeException();
+      await prepare(exception.orgId);
       await store.save(exception);
       await store.claimAction(idempotencyKey, exception.id, exception.orgId, exception.orderId);
       await store.failAction(idempotencyKey, 'provider unavailable');
@@ -182,6 +197,7 @@ export function runExceptionStoreContract(
     it('replays the existing result for another exception on the same organization order', async () => {
       const first = makeException();
       const second = makeException({ orgId: first.orgId, orderId: first.orderId });
+      await prepare(first.orgId);
       await store.save(first);
       await store.save(second);
       const firstKey = `contract_${randomUUID()}`;
@@ -207,6 +223,7 @@ export function runExceptionStoreContract(
       const first = { orgId, actor: 'operator', reason: 'first', before: {}, after: {}, at: new Date(Date.now() - 1000).toISOString() };
       const second = { orgId, actor: 'operator', reason: 'second', before: {}, after: {}, at: new Date().toISOString() };
       const otherOrgEntry = { orgId: otherOrgId, actor: 'operator', reason: 'other', before: {}, after: {}, at: new Date().toISOString() };
+      await prepare(orgId, otherOrgId);
 
       await store.appendAuditLog(first);
       await store.appendAuditLog(second);

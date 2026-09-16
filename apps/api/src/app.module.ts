@@ -11,6 +11,8 @@ import { FakeRefundGateway } from './gateways/fakeRefundGateway';
 import { ShopifyRefundGateway } from './gateways/shopifyRefundGateway';
 import { HealthController } from './health.controller';
 import { IngestController } from './ingest/ingest.controller';
+import { OrganizationDeletionService } from './organizations/organizationDeletion.service';
+import { OrganizationsController } from './organizations/organizations.controller';
 import { PrismaService } from './prisma.service';
 import { ReevaluationJob, ReevaluationQueue } from './reevaluation/reevaluation.job';
 import { REFUND_GATEWAY } from './refundGateway';
@@ -25,7 +27,7 @@ const usePrisma = Boolean(process.env.DATABASE_URL);
 const useShopify = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET);
 
 @Module({
-  controllers: [ExceptionsController, HealthController, IngestController],
+  controllers: [ExceptionsController, HealthController, IngestController, ...(usePrisma ? [OrganizationsController] : [])],
   providers: [
     ...(usePrisma
       ? [
@@ -33,6 +35,7 @@ const useShopify = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && process.env.SHOPIF
           { provide: EXCEPTION_STORE, useClass: PrismaExceptionStore },
           { provide: AUTH_SESSION_PROVIDER, useClass: BetterAuthService },
           { provide: MEMBERSHIP_STORE, useClass: PrismaMembershipStore },
+          OrganizationDeletionService,
         ]
       : [
           { provide: EXCEPTION_STORE, useClass: InMemoryExceptionStore },

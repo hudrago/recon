@@ -25,7 +25,15 @@ describe.skipIf(!process.env.DATABASE_URL)('PrismaExceptionStore (live database)
       await prisma.refundRecord.deleteMany({ where: { id: { startsWith: 'contract_' } } });
       await prisma.executedAction.deleteMany({ where: { OR: [{ idempotencyKey: { startsWith: 'contract_' } }, { orgId: { startsWith: 'contract_' } }] } });
       await prisma.auditLogEntry.deleteMany({ where: { orgId: { startsWith: 'contract_' } } });
+      await prisma.organization.deleteMany({ where: { id: { startsWith: 'contract_' } } });
       await prisma.onModuleDestroy();
+    },
+    async (orgId) => {
+      await prisma.organization.upsert({
+        where: { id: orgId },
+        create: { id: orgId, name: 'Contract test', slug: orgId, createdAt: new Date() },
+        update: {},
+      });
     },
   );
 });

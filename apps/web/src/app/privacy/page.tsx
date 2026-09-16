@@ -1,0 +1,18 @@
+import { PublicLegalShell } from '@/components/PublicLegalShell';
+import { getTranslations } from '@/lib/server-i18n';
+
+export default async function PrivacyPage() {
+  const { locale } = await getTranslations();
+  const pt = locale === 'pt';
+  return (
+    <PublicLegalShell eyebrow={pt ? 'Dados e privacidade' : 'Data and privacy'} title={pt ? 'Política de Privacidade' : 'Privacy Policy'} updatedAt="16-09-2026">
+      <section><h2>{pt ? 'Responsável pelo tratamento' : 'Data controller'}</h2><p>{pt ? 'A Recon trata os dados necessários para prestar o serviço de reconciliação de ecommerce. Para questões de privacidade, contacte ola@recon.pt.' : 'Recon processes the data required to provide its ecommerce reconciliation service. For privacy questions, contact ola@recon.pt.'}</p></section>
+      <section><h2>{pt ? 'Dados que tratamos' : 'Data we process'}</h2><p>{pt ? 'Tratamos dados de conta, organização, encomendas, entregas, devoluções e documentos fiscais. Minimizamos dados pessoais e nunca armazenamos dados de cartões de pagamento.' : 'We process account, organization, order, delivery, return, and fiscal-document data. We minimize personal data and never store payment-card details.'}</p></section>
+      <section><h2>{pt ? 'Finalidades e fundamento' : 'Purposes and legal basis'}</h2><p>{pt ? 'Usamos os dados para executar o contrato, proteger contas, reconciliar operações e cumprir obrigações legais. Comunicações opcionais dependem de consentimento ou interesse legítimo aplicável.' : 'We use data to perform the contract, protect accounts, reconcile operations, and meet legal obligations. Optional communications rely on consent or an applicable legitimate interest.'}</p></section>
+      <section><h2>{pt ? 'Partilha e localização' : 'Sharing and location'}</h2><p>{pt ? 'Os dados são partilhados apenas com fornecedores necessários ao serviço, sob contrato e com acesso limitado. A infraestrutura principal reside na União Europeia; qualquer transferência internacional exige salvaguardas adequadas.' : 'Data is shared only with service providers required to operate Recon, under contract and with limited access. Primary infrastructure resides in the European Union; any international transfer requires appropriate safeguards.'}</p></section>
+      <section><h2>{pt ? 'Conservação e eliminação' : 'Retention and deletion'}</h2><p>{pt ? 'Conservamos dados enquanto a conta estiver ativa e durante os prazos legais aplicáveis. Pedidos de eliminação não apagam registos fiscais ou de auditoria cuja conservação seja obrigatória; nesses casos, o acesso é restringido até ao fim do prazo.' : 'We retain data while an account is active and for applicable legal periods. Deletion requests do not erase fiscal or audit records that must legally be retained; access is restricted until the retention period ends.'}</p></section>
+      <section><h2>{pt ? 'Os seus direitos' : 'Your rights'}</h2><p>{pt ? 'Pode pedir acesso, correção, portabilidade, limitação, oposição ou eliminação dos seus dados. Pode também reclamar junto da CNPD. Respondemos através de ola@recon.pt.' : 'You may request access, correction, portability, restriction, objection, or deletion of your data. You may also complain to the Portuguese data protection authority, CNPD. Contact ola@recon.pt.'}</p></section>
+      <section><h2>{pt ? 'Cookies' : 'Cookies'}</h2><p>{pt ? 'Usamos apenas cookies e armazenamento local necessários para sessão, organização ativa, idioma e tema. Não usamos cookies publicitários.' : 'We use only cookies and local storage required for sessions, active organization, language, and theme. We do not use advertising cookies.'}</p></section>
+    </PublicLegalShell>
+  );
+}

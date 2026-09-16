@@ -138,7 +138,7 @@ export default async function HomePage() {
 
       <footer className="marketing-footer">
         <Brand />
-        <nav aria-label={t('marketing.footerNavigation')}><a href="#seguranca">{t('marketing.security')}</a><a href="mailto:ola@recon.pt">ola@recon.pt</a></nav>
+        <nav aria-label={t('marketing.footerNavigation')}><Link href="/privacy">{t('marketing.privacy')}</Link><Link href="/security">{t('marketing.security')}</Link><a href="mailto:ola@recon.pt">ola@recon.pt</a></nav>
         <p>© 2026 Recon. {t('marketing.rights')}</p>
       </footer>
     </main>

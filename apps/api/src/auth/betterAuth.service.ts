@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
 import { organization } from 'better-auth/plugins';
 import type { IncomingHttpHeaders } from 'node:http';
@@ -26,10 +27,32 @@ export class BetterAuthService implements AuthSessionProvider {
       trustedOrigins: [process.env.WEB_URL ?? 'http://localhost:3000'],
       database: prismaAdapter(prisma, { provider: 'postgresql' }),
       emailAndPassword: { enabled: true },
+      hooks: {
+        before: createAuthMiddleware(async (context) => {
+          if (context.path === '/delete-user' && !context.body?.password) {
+            throw new APIError('BAD_REQUEST', { message: 'Password is required to delete the account.' });
+          }
+        }),
+      },
+      user: {
+        deleteUser: {
+          enabled: true,
+          beforeDelete: async (user) => {
+            const [memberships, invitations] = await Promise.all([
+              prisma.member.findMany({ where: { userId: user.id }, select: { role: true } }),
+              prisma.invitation.count({ where: { inviterId: user.id } }),
+            ]);
+            if (memberships.some(({ role }) => role.split(',').map((value) => value.trim()).includes('owner'))) {
+              throw new APIError('CONFLICT', { message: 'Delete or transfer owned organizations before deleting the account.' });
+            }
+            if (invitations > 0) throw new APIError('CONFLICT', { message: 'Revoke outstanding organization invitations before deleting the account.' });
+          },
+        },
+      },
       advanced: process.env.NODE_ENV === 'production'
         ? { ipAddress: { ipAddressHeaders: ['x-real-ip'] } }
         : undefined,
-      plugins: [organization({ requireEmailVerificationOnInvitation: true })],
+      plugins: [organization({ requireEmailVerificationOnInvitation: true, disableOrganizationDeletion: true })],
     });
     this.handler = toNodeHandler(this.auth);
   }
