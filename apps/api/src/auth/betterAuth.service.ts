@@ -26,6 +26,9 @@ export class BetterAuthService implements AuthSessionProvider {
       trustedOrigins: [process.env.WEB_URL ?? 'http://localhost:3000'],
       database: prismaAdapter(prisma, { provider: 'postgresql' }),
       emailAndPassword: { enabled: true },
+      advanced: process.env.NODE_ENV === 'production'
+        ? { ipAddress: { ipAddressHeaders: ['x-real-ip'] } }
+        : undefined,
       plugins: [organization({ requireEmailVerificationOnInvitation: true })],
     });
     this.handler = toNodeHandler(this.auth);
