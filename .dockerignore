@@ -9,30 +9,3 @@ tests
 .env
 .env.*
 !**/.env.example
-*** Add File: c:\Users\hlimamen\workspace\recon\railway.json
-{
-  "$schema": "https://railway.com/railway.schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile",
-    "watchPatterns": [
-      "apps/api/**",
-      "packages/domain/**",
-      "packages/integrations/**",
-      "Dockerfile",
-      "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
-      "railway.json"
-    ]
-  },
-  "deploy": {
-    "preDeployCommand": [
-      "pnpm --filter @recon/api run prisma:migrate:deploy"
-    ],
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 300,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 5
-  }
-}
