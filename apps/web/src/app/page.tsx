@@ -1,44 +1,91 @@
 import Link from 'next/link';
-import { DEFAULT_SEVERITY_BY_CODE, SEVERITY_COLOR } from '@recon/ui';
-import { listExceptions } from '@/lib/api';
-import { requireActiveOrganization } from '@/lib/session';
+import { ArrowRight, Check, FileCheck2, PackageCheck, RefreshCcw, ShieldCheck, Truck } from 'lucide-react';
+import { Brand } from '@/components/Brand';
+import { PreferencesControls } from '@/components/PreferencesControls';
+import { getTranslations } from '@/lib/server-i18n';
 
-export default async function Home() {
-  const { orgId } = await requireActiveOrganization();
-  const exceptions = await listExceptions(orgId);
+export default async function HomePage() {
+  const { t } = await getTranslations();
+  const workflow = [
+    { icon: RefreshCcw, label: t('marketing.preview.refund'), source: 'Shopify', order: '#PT-4821', time: t('marketing.preview.minutesAgo', { minutes: 12 }), tone: 'danger' },
+    { icon: Truck, label: t('marketing.preview.delivery'), source: 'CTT Expresso', order: '#PT-4798', time: t('marketing.preview.minutesAgo', { minutes: 38 }), tone: 'warning' },
+    { icon: FileCheck2, label: t('marketing.preview.invoice'), source: 'InvoiceXpress', order: '#PT-4772', time: t('marketing.preview.hourAgo'), tone: 'neutral' },
+  ];
 
   return (
-    <main className="min-h-screen bg-background p-8 text-text-primary sm:p-12">
-      <h1 className="mb-8 text-2xl font-bold">Operations Inbox</h1>
-      {exceptions.length === 0 ? (
-        <p className="text-text-secondary">No open exceptions.</p>
-      ) : (
-        <div className="flex max-w-xl flex-col gap-4">
-          {exceptions.map((exception) => {
-            const severity = DEFAULT_SEVERITY_BY_CODE[exception.code] ?? 'LOW';
-            return (
-              <Link
-                key={exception.id}
-                href={`/exceptions/${exception.id}`}
-                className="flex items-center justify-between rounded-lg border border-border bg-surface p-6 transition hover:border-accent"
-              >
-                <div>
-                  <span
-                    className="mb-2 inline-block rounded-pill px-3 py-1 text-xs font-semibold text-white"
-                    style={{ backgroundColor: SEVERITY_COLOR[severity] }}
-                  >
-                    {severity}
-                  </span>
-                  <p className="text-sm text-text-secondary">
-                    {exception.code} · {exception.orderId}
-                  </p>
-                </div>
-                <p className="text-sm text-text-secondary">{new Date(exception.detectedAt).toLocaleString('pt-PT')}</p>
-              </Link>
-            );
-          })}
+    <main className="marketing-page">
+      <header className="public-header">
+        <div className="public-nav">
+          <Brand />
+          <nav aria-label={t('nav.primary')}>
+            <a href="#produto">{t('nav.product')}</a>
+            <a href="#controlo">{t('nav.control')}</a>
+          </nav>
+          <div className="public-actions">
+            <PreferencesControls />
+            <Link href="/sign-in" className="text-link">{t('nav.signIn')}</Link>
+            <Link href="/exceptions" className="button button-compact">{t('nav.openApp')} <ArrowRight size={16} aria-hidden="true" /></Link>
+          </div>
         </div>
-      )}
+      </header>
+
+      <section className="hero" aria-labelledby="hero-title">
+        <div className="hero-grid" aria-hidden="true" />
+        <div className="hero-copy">
+          <p className="eyebrow">{t('marketing.eyebrow')}</p>
+          <h1 id="hero-title">{t('marketing.title')} <em>{t('marketing.titleAccent')}</em></h1>
+          <p className="hero-lead">{t('marketing.lead')}</p>
+          <div className="hero-actions">
+            <Link href="/sign-up" className="button">{t('marketing.createAccount')} <ArrowRight size={18} aria-hidden="true" /></Link>
+            <Link href="/sign-in" className="button button-secondary">{t('marketing.signIn')}</Link>
+          </div>
+        </div>
+
+        <div className="product-preview" id="produto" aria-label={t('marketing.preview.label')}>
+          <div className="preview-bar">
+            <div><span className="preview-logo">R</span><strong>{t('marketing.preview.inbox')}</strong></div>
+            <span className="preview-status"><span /> {t('marketing.preview.synced')}</span>
+          </div>
+          <div className="preview-summary">
+            <div><span>{t('marketing.preview.pending')}</span><strong>08</strong></div>
+            <div><span>{t('marketing.preview.protected')}</span><strong>€ 2.840</strong></div>
+            <div className="preview-summary-note"><ShieldCheck size={20} aria-hidden="true" /><span>{t('marketing.preview.approval')}</span></div>
+          </div>
+          <div className="preview-list">
+            {workflow.map(({ icon: Icon, label, source, order, time, tone }) => (
+              <div className="preview-row" key={order}>
+                <span className={`preview-icon ${tone}`}><Icon size={18} aria-hidden="true" /></span>
+                <div><strong>{label}</strong><span>{source} · {order}</span></div>
+                <time>{time}</time>
+                <span className="preview-chevron" aria-hidden="true">›</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="trust-strip" aria-label={t('marketing.integrations')}>
+        <span>{t('marketing.sources')}</span>
+        <strong>Shopify</strong><strong>CTT</strong><strong>DPD</strong><strong>InvoiceXpress</strong><strong>Moloni</strong>
+      </section>
+
+      <section className="control-section" id="controlo">
+        <div className="section-heading">
+          <p className="eyebrow">{t('marketing.process.eyebrow')}</p>
+          <h2>{t('marketing.process.title')}<br />{t('marketing.process.titleAccent')}</h2>
+        </div>
+        <div className="control-steps">
+          <article><span>01</span><PackageCheck aria-hidden="true" /><h3>{t('marketing.process.detect')}</h3><p>{t('marketing.process.detectDescription')}</p></article>
+          <article><span>02</span><ShieldCheck aria-hidden="true" /><h3>{t('marketing.process.decide')}</h3><p>{t('marketing.process.decideDescription')}</p></article>
+          <article><span>03</span><Check aria-hidden="true" /><h3>{t('marketing.process.record')}</h3><p>{t('marketing.process.recordDescription')}</p></article>
+        </div>
+      </section>
+
+      <footer className="marketing-footer">
+        <Brand />
+        <p>{t('marketing.footer')}</p>
+        <Link href="/sign-up">{t('marketing.start')} <ArrowRight size={16} aria-hidden="true" /></Link>
+      </footer>
     </main>
   );
 }

@@ -1,37 +1,45 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft, Clock3, FileSearch, ShoppingBag } from 'lucide-react';
 import { getException } from '@/lib/api';
+import { exceptionDescription, exceptionLabel, readableContextKey, statusLabel } from '@/lib/presentation';
+import { getTranslations } from '@/lib/server-i18n';
 import { requireActiveOrganization } from '@/lib/session';
 import { CaseActions } from './CaseActions';
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { orgId } = await requireActiveOrganization();
+  const { locale, t } = await getTranslations();
   const exception = await getException(orgId, id);
   if (!exception) notFound();
 
   return (
-    <main className="min-h-screen bg-background p-8 text-text-primary sm:p-12">
-      <Link href="/" className="text-sm text-text-secondary hover:text-accent">
-        &larr; Back to inbox
+    <main className="app-main case-main">
+      <Link href="/exceptions" className="back-link">
+        <ArrowLeft size={16} aria-hidden="true" /> {t('case.back')}
       </Link>
-      <h1 className="mb-2 mt-4 text-2xl font-bold">{exception.code}</h1>
-      <p className="mb-8 text-sm text-text-secondary">
-        Order {exception.orderId} · Status: {exception.status}
-      </p>
-
-      <div className="max-w-xl rounded-lg border border-border bg-surface p-6">
-        <dl className="grid grid-cols-2 gap-y-3 text-sm">
-          <dt className="text-text-secondary">Detected</dt>
-          <dd>{new Date(exception.detectedAt).toLocaleString('pt-PT')}</dd>
-          <dt className="text-text-secondary">Status</dt>
-          <dd>{exception.status}</dd>
-          <dt className="text-text-secondary">Context</dt>
-          <dd className="break-all font-mono text-xs">{JSON.stringify(exception.context)}</dd>
-        </dl>
+      <div className="case-heading">
+        <div>
+          <span className={`status-badge status-${exception.status}`}>{statusLabel(locale, exception.status)}</span>
+          <h1>{exceptionLabel(locale, exception.code)}</h1>
+          <p>{exceptionDescription(locale, exception.code) || t('case.fallbackDescription')}</p>
+        </div>
+        <div className="case-order"><ShoppingBag size={18} aria-hidden="true" /><span>{t('case.order')}</span><strong>{exception.orderId}</strong></div>
       </div>
 
-      <CaseActions orgId={orgId} exceptionId={exception.id} orderId={exception.orderId} status={exception.status} />
+      <div className="case-grid">
+        <section className="case-panel" aria-labelledby="context-title">
+          <div className="case-panel-title"><FileSearch size={18} aria-hidden="true" /><h2 id="context-title">{t('case.context')}</h2></div>
+          <dl className="context-list">
+            {Object.entries(exception.context).map(([key, value]) => (
+              <div key={key}><dt>{readableContextKey(key, locale)}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>
+            ))}
+          </dl>
+          <div className="detected-at"><Clock3 size={16} aria-hidden="true" /><span>{t('case.detectedAt', { date: new Date(exception.detectedAt).toLocaleString(locale === 'pt' ? 'pt-PT' : 'en-GB', { dateStyle: 'long', timeStyle: 'short' }) })}</span></div>
+        </section>
+        <CaseActions orgId={orgId} exceptionId={exception.id} orderId={exception.orderId} status={exception.status} />
+      </div>
     </main>
   );
 }
