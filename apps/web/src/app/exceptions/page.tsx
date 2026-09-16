@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AlertCircle, ArrowRight, CheckCircle2, CircleDashed } from 'lucide-react';
 import { DEFAULT_SEVERITY_BY_CODE } from '@recon/ui';
 import { listExceptions } from '@/lib/api';
+import { encodeExceptionRouteId } from '@/lib/exception-route';
 import { exceptionDescription, exceptionLabel, severityLabel, statusLabel } from '@/lib/presentation';
 import { getTranslations } from '@/lib/server-i18n';
 import { requireActiveOrganization } from '@/lib/session';
@@ -40,7 +41,7 @@ export default async function ExceptionsPage() {
             return (
               <Link
                 key={exception.id}
-                href={`/exceptions/${exception.id}`}
+                href={`/exceptions/${encodeExceptionRouteId(exception.id)}`}
                 className="inbox-row"
               >
                 <div className="exception-identity">

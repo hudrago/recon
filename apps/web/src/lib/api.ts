@@ -26,7 +26,7 @@ export async function listExceptions(orgId: string): Promise<ApiException[]> {
 }
 
 export async function getException(orgId: string, exceptionId: string): Promise<ApiException | null> {
-  const res = await apiFetch(`/orgs/${orgId}/exceptions/${exceptionId}`);
+  const res = await apiFetch(`/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to load exception (${res.status})`);
   return res.json();

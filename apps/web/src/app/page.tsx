@@ -1,15 +1,39 @@
 import Link from 'next/link';
-import { ArrowRight, Check, FileCheck2, PackageCheck, RefreshCcw, ShieldCheck, Truck } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CircleDollarSign,
+  Clock3,
+  FileCheck2,
+  PackageSearch,
+  ReceiptText,
+  RefreshCcw,
+  ShieldCheck,
+  Truck,
+  UserRoundCheck,
+  Zap,
+} from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { PreferencesControls } from '@/components/PreferencesControls';
 import { getTranslations } from '@/lib/server-i18n';
 
 export default async function HomePage() {
   const { t } = await getTranslations();
+  const exceptions = [
+    { icon: RefreshCcw, label: t('marketing.preview.refund'), source: 'Shopify', order: '#PT-4821', amount: '€ 89,90', time: t('marketing.preview.minutesAgo', { minutes: 12 }), tone: 'critical' },
+    { icon: Truck, label: t('marketing.preview.delivery'), source: 'CTT Expresso', order: '#PT-4798', amount: '72 h', time: t('marketing.preview.minutesAgo', { minutes: 38 }), tone: 'warning' },
+    { icon: FileCheck2, label: t('marketing.preview.invoice'), source: 'InvoiceXpress', order: '#PT-4772', amount: '€ 142,00', time: t('marketing.preview.hourAgo'), tone: 'neutral' },
+  ];
+  const valueProps = [
+    { icon: CircleDollarSign, title: t('marketing.value.refunds'), description: t('marketing.value.refundsDescription') },
+    { icon: Truck, title: t('marketing.value.deliveries'), description: t('marketing.value.deliveriesDescription') },
+    { icon: ReceiptText, title: t('marketing.value.invoicing'), description: t('marketing.value.invoicingDescription') },
+  ];
   const workflow = [
-    { icon: RefreshCcw, label: t('marketing.preview.refund'), source: 'Shopify', order: '#PT-4821', time: t('marketing.preview.minutesAgo', { minutes: 12 }), tone: 'danger' },
-    { icon: Truck, label: t('marketing.preview.delivery'), source: 'CTT Expresso', order: '#PT-4798', time: t('marketing.preview.minutesAgo', { minutes: 38 }), tone: 'warning' },
-    { icon: FileCheck2, label: t('marketing.preview.invoice'), source: 'InvoiceXpress', order: '#PT-4772', time: t('marketing.preview.hourAgo'), tone: 'neutral' },
+    { icon: PackageSearch, title: t('marketing.process.detect'), description: t('marketing.process.detectDescription') },
+    { icon: UserRoundCheck, title: t('marketing.process.decide'), description: t('marketing.process.decideDescription') },
+    { icon: Zap, title: t('marketing.process.execute'), description: t('marketing.process.executeDescription') },
   ];
 
   return (
@@ -19,72 +43,103 @@ export default async function HomePage() {
           <Brand />
           <nav aria-label={t('nav.primary')}>
             <a href="#produto">{t('nav.product')}</a>
-            <a href="#controlo">{t('nav.control')}</a>
+            <a href="#integracoes">{t('nav.integrations')}</a>
+            <a href="#seguranca">{t('nav.security')}</a>
           </nav>
           <div className="public-actions">
-            <PreferencesControls />
+            <PreferencesControls iconMenus />
             <Link href="/sign-in" className="text-link">{t('nav.signIn')}</Link>
-            <Link href="/exceptions" className="button button-compact">{t('nav.openApp')} <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link href="/sign-up" className="button button-compact">{t('nav.getStarted')} <ArrowUpRight size={15} aria-hidden="true" /></Link>
           </div>
         </div>
       </header>
 
       <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-grid" aria-hidden="true" />
         <div className="hero-copy">
           <p className="eyebrow">{t('marketing.eyebrow')}</p>
-          <h1 id="hero-title">{t('marketing.title')} <em>{t('marketing.titleAccent')}</em></h1>
+          <h1 id="hero-title"><span>{t('marketing.title')}</span> <em>{t('marketing.titleAccent')}</em></h1>
           <p className="hero-lead">{t('marketing.lead')}</p>
           <div className="hero-actions">
             <Link href="/sign-up" className="button">{t('marketing.createAccount')} <ArrowRight size={18} aria-hidden="true" /></Link>
-            <Link href="/sign-in" className="button button-secondary">{t('marketing.signIn')}</Link>
+            <a href="#produto" className="hero-text-link">{t('marketing.seeProduct')} <ArrowUpRight size={16} aria-hidden="true" /></a>
           </div>
+          <p className="hero-proof"><Check size={14} aria-hidden="true" /> {t('marketing.proof')}</p>
         </div>
 
-        <div className="product-preview" id="produto" aria-label={t('marketing.preview.label')}>
-          <div className="preview-bar">
-            <div><span className="preview-logo">R</span><strong>{t('marketing.preview.inbox')}</strong></div>
-            <span className="preview-status"><span /> {t('marketing.preview.synced')}</span>
-          </div>
-          <div className="preview-summary">
-            <div><span>{t('marketing.preview.pending')}</span><strong>08</strong></div>
-            <div><span>{t('marketing.preview.protected')}</span><strong>€ 2.840</strong></div>
-            <div className="preview-summary-note"><ShieldCheck size={20} aria-hidden="true" /><span>{t('marketing.preview.approval')}</span></div>
-          </div>
-          <div className="preview-list">
-            {workflow.map(({ icon: Icon, label, source, order, time, tone }) => (
-              <div className="preview-row" key={order}>
-                <span className={`preview-icon ${tone}`}><Icon size={18} aria-hidden="true" /></span>
-                <div><strong>{label}</strong><span>{source} · {order}</span></div>
-                <time>{time}</time>
-                <span className="preview-chevron" aria-hidden="true">›</span>
+        <div className="product-stage" id="produto">
+          <div className="product-preview" aria-label={t('marketing.preview.label')}>
+            <div className="preview-sidebar" aria-hidden="true">
+              <span className="preview-logo">R</span>
+              <span className="preview-nav-item active"><PackageSearch size={17} /></span>
+              <span className="preview-nav-item"><Clock3 size={17} /></span>
+              <span className="preview-nav-item"><ShieldCheck size={17} /></span>
+            </div>
+            <div className="preview-main">
+              <div className="preview-bar">
+                <div><span>{t('marketing.preview.workspace')}</span><strong>{t('marketing.preview.inbox')}</strong></div>
+                <span className="preview-status"><span /> {t('marketing.preview.synced')}</span>
               </div>
-            ))}
+              <div className="preview-summary">
+                <div><span>{t('marketing.preview.pending')}</span><strong>08</strong></div>
+                <div><span>{t('marketing.preview.approved')}</span><strong>24</strong></div>
+                <div><span>{t('marketing.preview.protected')}</span><strong>€ 2.840</strong></div>
+              </div>
+              <div className="preview-table-head" aria-hidden="true">
+                <span>{t('marketing.preview.exception')}</span><span>{t('marketing.preview.impact')}</span><span>{t('marketing.preview.detected')}</span>
+              </div>
+              <div className="preview-list">
+                {exceptions.map(({ icon: Icon, label, source, order, amount, time, tone }) => (
+                  <div className="preview-row" key={order}>
+                    <span className={`preview-icon ${tone}`}><Icon size={17} aria-hidden="true" /></span>
+                    <div className="preview-identity"><strong>{label}</strong><span>{source} · {order}</span></div>
+                    <strong className="preview-amount">{amount}</strong>
+                    <time>{time}</time>
+                    <ArrowUpRight className="preview-chevron" size={15} aria-hidden="true" />
+                  </div>
+                ))}
+              </div>
+              <div className="preview-foot"><ShieldCheck size={14} aria-hidden="true" /> {t('marketing.preview.approval')}</div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="trust-strip" aria-label={t('marketing.integrations')}>
+      <section className="trust-strip" id="integracoes" aria-label={t('marketing.integrations')}>
         <span>{t('marketing.sources')}</span>
-        <strong>Shopify</strong><strong>CTT</strong><strong>DPD</strong><strong>InvoiceXpress</strong><strong>Moloni</strong>
+        <div className="integration-list"><strong>Shopify</strong><i /><strong>CTT</strong><i /><strong>DPD</strong><i /><strong>InvoiceXpress</strong><i /><strong>Moloni</strong></div>
       </section>
 
-      <section className="control-section" id="controlo">
+      <section className="value-band" aria-labelledby="value-title">
+        <h2 id="value-title" className="sr-only">{t('marketing.value.title')}</h2>
+        <div className="value-grid">
+          {valueProps.map(({ icon: Icon, title, description }) => (
+            <article key={title}><Icon aria-hidden="true" /><div><h3>{title}</h3><p>{description}</p></div><ArrowUpRight size={18} aria-hidden="true" /></article>
+          ))}
+        </div>
+      </section>
+
+      <section className="control-section" id="seguranca" aria-labelledby="control-title">
         <div className="section-heading">
           <p className="eyebrow">{t('marketing.process.eyebrow')}</p>
-          <h2>{t('marketing.process.title')}<br />{t('marketing.process.titleAccent')}</h2>
+          <h2 id="control-title"><span>{t('marketing.process.title')}</span> <em>{t('marketing.process.titleAccent')}</em></h2>
+          <p>{t('marketing.process.intro')}</p>
         </div>
         <div className="control-steps">
-          <article><span>01</span><PackageCheck aria-hidden="true" /><h3>{t('marketing.process.detect')}</h3><p>{t('marketing.process.detectDescription')}</p></article>
-          <article><span>02</span><ShieldCheck aria-hidden="true" /><h3>{t('marketing.process.decide')}</h3><p>{t('marketing.process.decideDescription')}</p></article>
-          <article><span>03</span><Check aria-hidden="true" /><h3>{t('marketing.process.record')}</h3><p>{t('marketing.process.recordDescription')}</p></article>
+          {workflow.map(({ icon: Icon, title, description }, index) => (
+            <article key={title}><div className="step-marker"><span>0{index + 1}</span><Icon size={20} aria-hidden="true" /></div><h3>{title}</h3><p>{description}</p></article>
+          ))}
         </div>
+      </section>
+
+      <section className="marketing-cta" aria-labelledby="cta-title">
+        <div><p className="eyebrow">{t('marketing.cta.eyebrow')}</p><h2 id="cta-title">{t('marketing.cta.title')}</h2></div>
+        <Link href="/sign-up" className="button">{t('marketing.start')} <ArrowRight size={18} aria-hidden="true" /></Link>
       </section>
 
       <footer className="marketing-footer">
         <Brand />
-        <p>{t('marketing.footer')}</p>
-        <Link href="/sign-up">{t('marketing.start')} <ArrowRight size={16} aria-hidden="true" /></Link>
+        <nav aria-label={t('marketing.footerNavigation')}><a href="#seguranca">{t('marketing.security')}</a><a href="mailto:ola@recon.pt">ola@recon.pt</a></nav>
+        <p>© 2026 Recon. {t('marketing.rights')}</p>
       </footer>
     </main>
   );

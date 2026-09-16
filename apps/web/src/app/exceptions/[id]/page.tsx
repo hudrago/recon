@@ -2,13 +2,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock3, FileSearch, ShoppingBag } from 'lucide-react';
 import { getException } from '@/lib/api';
+import { decodeExceptionRouteId } from '@/lib/exception-route';
 import { exceptionDescription, exceptionLabel, readableContextKey, statusLabel } from '@/lib/presentation';
 import { getTranslations } from '@/lib/server-i18n';
 import { requireActiveOrganization } from '@/lib/session';
 import { CaseActions } from './CaseActions';
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const { id: routeId } = await params;
+  const id = decodeExceptionRouteId(routeId);
   const { orgId } = await requireActiveOrganization();
   const { locale, t } = await getTranslations();
   const exception = await getException(orgId, id);

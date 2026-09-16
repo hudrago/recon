@@ -2,10 +2,20 @@
 
 import { Languages, SunMoon } from 'lucide-react';
 import { locales, type Locale } from '@/lib/i18n';
+import { HeaderSelectMenu } from './HeaderSelectMenu';
 import { usePreferences } from './PreferencesProvider';
 
-export function PreferencesControls({ className = '' }: { className?: string }) {
+export function PreferencesControls({ className = '', iconMenus = false }: { className?: string; iconMenus?: boolean }) {
   const { locale, setLocale, setTheme, t, theme } = usePreferences();
+
+  if (iconMenus) {
+    return (
+      <div className={`preference-menu-controls ${className}`.trim()}>
+        <HeaderSelectMenu label={t('preferences.language')} icon={<Languages size={18} aria-hidden="true" />} value={locale} options={locales.map((option) => ({ value: option, label: t(`preferences.locale.${option}`) }))} onSelect={(option) => setLocale(option as Locale)} />
+        <HeaderSelectMenu label={t('preferences.theme')} icon={<SunMoon size={18} aria-hidden="true" />} value={theme} options={(['system', 'light', 'dark'] as const).map((option) => ({ value: option, label: t(`preferences.theme.${option}`) }))} onSelect={(option) => setTheme(option as 'system' | 'light' | 'dark')} />
+      </div>
+    );
+  }
 
   return (
     <div className={`preference-controls ${className}`.trim()}>

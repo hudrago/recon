@@ -26,7 +26,7 @@ export function AuthShell({ eyebrow, title, description, children }: { eyebrow: 
         <p className="auth-context-note">{t('auth.contextNote')}</p>
       </aside>
       <section className="auth-panel">
-        <PreferencesControls className="auth-preferences" />
+        <PreferencesControls className="auth-preferences" iconMenus />
         <div className="auth-mobile-brand"><Brand /></div>
         <div className="auth-form-wrap">
           <p className="eyebrow">{eyebrow}</p>

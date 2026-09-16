@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers';
 import type { Metadata } from 'next';
 import '@fontsource-variable/manrope';
-import '@fontsource-variable/newsreader';
 import { PreferencesProvider } from '@/components/PreferencesProvider';
 import { SessionControls } from '@/components/SessionControls';
 import { isLocale } from '@/lib/i18n';

@@ -2,12 +2,12 @@
 // A Tailwind preset will re-export these once Tailwind is installed (Phase 2).
 
 export const colors = {
-  background: '#F6F6F2',
+  background: '#F4F5F3',
   surface: '#FFFFFF',
-  surfaceElevated: '#ECECE6',
-  border: '#D8D9D2',
-  textPrimary: '#171815',
-  textSecondary: '#65675F',
+  surfaceElevated: '#ECEEEB',
+  border: '#D5D9D5',
+  textPrimary: '#111411',
+  textSecondary: '#646A66',
   accent: '#F0523D',
   accentContrast: '#FFFFFF',
   success: '#087F6D',
