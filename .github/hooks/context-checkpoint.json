@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "type": "command", "command": "node ./.github/hooks/scripts/checkpoint-reminder.js session-start", "timeout": 10 }
+    ],
+    "PreCompact": [
+      { "type": "command", "command": "node ./.github/hooks/scripts/checkpoint-reminder.js pre-compact", "timeout": 10 }
+    ],
+    "Stop": [
+      { "type": "command", "command": "node ./.github/hooks/scripts/checkpoint-reminder.js stop", "timeout": 10 }
+    ]
+  }
+}

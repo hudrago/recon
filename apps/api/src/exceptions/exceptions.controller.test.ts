@@ -6,6 +6,8 @@ import type { ReturnRecord } from '@recon/domain';
 import { REFUND_MISSING_THRESHOLD_MS } from '@recon/domain';
 import { AppModule } from '../app.module';
 import { AUTH_SESSION_PROVIDER, MEMBERSHIP_STORE } from '../auth/auth.types';
+import { BILLING_STORE } from '../billing/billingStore';
+import { InMemoryBillingStore } from '../billing/inMemoryBillingStore';
 import { ExceptionService } from '../exceptionService';
 import { EXCEPTION_STORE } from '../exceptionStore';
 import { FakeRefundGateway } from '../gateways/fakeRefundGateway';
@@ -28,6 +30,8 @@ describe('ExceptionsController (http)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(EXCEPTION_STORE)
       .useClass(InMemoryExceptionStore)
+      .overrideProvider(BILLING_STORE)
+      .useClass(InMemoryBillingStore)
       .overrideProvider(PrismaService)
       .useValue({})
       .overrideProvider(REFUND_GATEWAY)
@@ -119,5 +123,51 @@ describe('ExceptionsController (http)', () => {
 
     expect(response.body.refundId).toBe('refund_refund:REFUND_MISSING:org_1:ret_http_1');
     expect((await exceptions.getAuditLog('org_1')).map((entry) => entry.actor)).toEqual(['user_1', 'user_1']);
+  });
+
+  it('blocks refund execution once the organization has no remaining action entitlement', async () => {
+    const readOnlySubscription = {
+      orgId: 'org_1',
+      planCode: 'GROWTH' as const,
+      status: 'trialing' as const,
+      trialEndsAt: new Date('2020-01-01T00:00:00.000Z'),
+      graceEndsAt: new Date('2020-01-08T00:00:00.000Z'),
+      currentPeriodStart: new Date('2019-12-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2020-01-01T00:00:00.000Z'),
+    };
+    const billingStore = new InMemoryBillingStore();
+    await billingStore.ensureSubscription(readOnlySubscription);
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(EXCEPTION_STORE)
+      .useClass(InMemoryExceptionStore)
+      .overrideProvider(BILLING_STORE)
+      .useValue(billingStore)
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .overrideProvider(REFUND_GATEWAY)
+      .useClass(FakeRefundGateway)
+      .overrideProvider(AUTH_SESSION_PROVIDER)
+      .useValue({ getSession })
+      .overrideProvider(MEMBERSHIP_STORE)
+      .useValue({ getRole: async (_userId: string, orgId: string) => (orgId === 'org_1' ? 'operator' : null) })
+      .compile();
+    const readOnlyApp = moduleRef.createNestApplication();
+    await readOnlyApp.init();
+    const readOnlyExceptions = moduleRef.get(ExceptionService);
+
+    await readOnlyExceptions.ingestReturn(returnRecord, [], now);
+    const [exception] = await readOnlyExceptions.listOpenExceptions('org_1');
+    await request(readOnlyApp.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/approve`)
+      .send({ reason: 'Customer refund approved', amountMinor: 1000, currency: 'EUR' })
+      .expect(200);
+
+    const response = await request(readOnlyApp.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/actions/refund`)
+      .send({})
+      .expect(403);
+
+    expect(response.body.code).toBe('BILLING_LIMIT_REACHED');
+    await readOnlyApp.close();
   });
 });

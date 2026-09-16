@@ -5,6 +5,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
 import { organization } from 'better-auth/plugins';
 import type { IncomingHttpHeaders } from 'node:http';
+import { BillingService } from '../billing/billing.service';
 import { PrismaService } from '../prisma.service';
 import type { AuthSession, AuthSessionProvider } from './auth.types';
 
@@ -15,7 +16,10 @@ export class BetterAuthService implements AuthSessionProvider {
   private readonly auth;
   readonly handler;
 
-  constructor(@Inject(PrismaService) prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService) prisma: PrismaService,
+    @Inject(BillingService) billing: BillingService,
+  ) {
     if (process.env.NODE_ENV === 'production' && !process.env.BETTER_AUTH_SECRET) {
       throw new Error('BETTER_AUTH_SECRET is required in production');
     }
@@ -52,7 +56,17 @@ export class BetterAuthService implements AuthSessionProvider {
       advanced: process.env.NODE_ENV === 'production'
         ? { ipAddress: { ipAddressHeaders: ['x-real-ip'] } }
         : undefined,
-      plugins: [organization({ requireEmailVerificationOnInvitation: true, disableOrganizationDeletion: true })],
+      plugins: [organization({
+        requireEmailVerificationOnInvitation: true,
+        disableOrganizationDeletion: true,
+        organizationHooks: {
+          // Every new organization starts on a 30-day Growth trial, no card required. Idempotent —
+          // safe even if this hook is retried after a partial failure.
+          afterCreateOrganization: async ({ organization: createdOrganization }) => {
+            await billing.ensureTrial(createdOrganization.id, new Date());
+          },
+        },
+      })],
     });
     this.handler = toNodeHandler(this.auth);
   }

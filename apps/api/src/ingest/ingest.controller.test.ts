@@ -1,14 +1,15 @@
-import { createHmac } from 'node:crypto';
-import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import request from 'supertest';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OrgGuard } from '../auth/org.guard';
-import { rawJsonBodyParser } from '../common/rawJsonBody';
-import { ExceptionService } from '../exceptionService';
-import { IngestController } from './ingest.controller';
+import { createHmac } from "node:crypto";
+import type { INestApplication } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { OrgGuard } from "../auth/org.guard";
+import { BillingService } from "../billing/billing.service";
+import { rawJsonBodyParser } from "../common/rawJsonBody";
+import { ExceptionService } from "../exceptionService";
+import { IngestController } from "./ingest.controller";
 
-describe('IngestController Shopify webhook (http)', () => {
+describe("IngestController Shopify webhook (http)", () => {
   let app: INestApplication;
   const ingestReturn = vi.fn().mockResolvedValue(null);
   const ingestOrder = vi.fn().mockResolvedValue(null);
@@ -16,6 +17,8 @@ describe('IngestController Shopify webhook (http)', () => {
   const claimWebhook = vi.fn().mockResolvedValue(true);
   const completeWebhook = vi.fn().mockResolvedValue(undefined);
   const releaseWebhook = vi.fn().mockResolvedValue(undefined);
+  const canIngest = vi.fn().mockResolvedValue(true);
+  const recordProcessedOrder = vi.fn().mockResolvedValue(undefined);
   const secret = "test-shopify-secret";
   const payload = JSON.stringify({
     id: 123,
@@ -34,6 +37,8 @@ describe('IngestController Shopify webhook (http)', () => {
     claimWebhook.mockClear().mockResolvedValue(true);
     completeWebhook.mockClear();
     releaseWebhook.mockClear();
+    canIngest.mockClear().mockResolvedValue(true);
+    recordProcessedOrder.mockClear();
     const moduleRef = await Test.createTestingModule({
       controllers: [IngestController],
       providers: [
@@ -48,6 +53,10 @@ describe('IngestController Shopify webhook (http)', () => {
             ingestRefund,
             ingestShipment: vi.fn(),
           },
+        },
+        {
+          provide: BillingService,
+          useValue: { canIngest, recordProcessedOrder },
         },
       ],
     })
@@ -159,21 +168,184 @@ describe('IngestController Shopify webhook (http)', () => {
       .expect(200);
 
     expect(ingestOrder).toHaveBeenCalledOnce();
+    expect(recordProcessedOrder).toHaveBeenCalledWith({
+      orgId: "org_1",
+      provider: "shopify",
+      externalOrderId: "820982911946154508",
+      amountCents: 10495,
+      currency: "EUR",
+      paidAt: new Date("2026-09-14T10:00:00.000Z"),
+    });
   });
 
-  it('rejects a valid signature from a shop not mapped to the URL organization', async () => {
-    const hmac = createHmac('sha256', secret).update(payload).digest('base64');
+  it("acknowledges but does not evaluate a webhook for a billing-paused organization", async () => {
+    canIngest.mockResolvedValue(false);
+    const orderPayload = JSON.stringify({
+      id: "820982911946154508",
+      admin_graphql_api_id: "gid://shopify/Order/820982911946154508",
+      currency: "EUR",
+      total_price: "104.95",
+      processed_at: "2026-09-14T10:00:00.000Z",
+    });
+    const hmac = createHmac("sha256", secret)
+      .update(orderPayload)
+      .digest("base64");
+
+    const response = await request(app.getHttpServer())
+      .post("/orgs/org_1/ingest/shopify/orders/paid")
+      .set("content-type", "application/json")
+      .set("x-shopify-hmac-sha256", hmac)
+      .set("x-shopify-webhook-id", "webhook_order_2")
+      .set("x-shopify-shop-domain", "recon-test.myshopify.com")
+      .send(orderPayload)
+      .expect(200);
+
+    expect(response.body.billingPaused).toBe(true);
+    expect(ingestOrder).not.toHaveBeenCalled();
+    expect(recordProcessedOrder).not.toHaveBeenCalled();
+    expect(completeWebhook).toHaveBeenCalledWith("shopify", "webhook_order_2");
+  });
+
+  it("rejects a valid signature from a shop not mapped to the URL organization", async () => {
+    const hmac = createHmac("sha256", secret).update(payload).digest("base64");
 
     await request(app.getHttpServer())
-      .post('/orgs/org_2/ingest/shopify/returns')
-      .set('content-type', 'application/json')
-      .set('x-shopify-hmac-sha256', hmac)
-      .set('x-shopify-webhook-id', 'webhook_2')
-      .set('x-shopify-shop-domain', 'recon-test.myshopify.com')
+      .post("/orgs/org_2/ingest/shopify/returns")
+      .set("content-type", "application/json")
+      .set("x-shopify-hmac-sha256", hmac)
+      .set("x-shopify-webhook-id", "webhook_2")
+      .set("x-shopify-shop-domain", "recon-test.myshopify.com")
       .send(payload)
       .expect(401);
 
     expect(claimWebhook).not.toHaveBeenCalled();
     expect(ingestReturn).not.toHaveBeenCalled();
+  });
+});
+
+describe("IngestController InvoiceXpress webhook (http)", () => {
+  let app: INestApplication;
+  const ingestInvoice = vi.fn().mockResolvedValue(undefined);
+  const claimWebhook = vi.fn().mockResolvedValue(true);
+  const completeWebhook = vi.fn().mockResolvedValue(undefined);
+  const releaseWebhook = vi.fn().mockResolvedValue(undefined);
+  const canIngest = vi.fn().mockResolvedValue(true);
+  const token = "test-invoicexpress-token";
+  const invoicePayload = {
+    invoice: { id: 987654, reference: "order_1", date: "2026-09-16" },
+  };
+
+  beforeEach(async () => {
+    process.env.INVOICEXPRESS_WEBHOOK_TOKEN = token;
+    process.env.INVOICEXPRESS_ORG_ID = "org_1";
+    ingestInvoice.mockClear();
+    claimWebhook.mockClear().mockResolvedValue(true);
+    completeWebhook.mockClear();
+    releaseWebhook.mockClear();
+    canIngest.mockClear().mockResolvedValue(true);
+    const moduleRef = await Test.createTestingModule({
+      controllers: [IngestController],
+      providers: [
+        {
+          provide: ExceptionService,
+          useValue: {
+            claimWebhook,
+            completeWebhook,
+            releaseWebhook,
+            ingestInvoice,
+          },
+        },
+        { provide: BillingService, useValue: { canIngest } },
+      ],
+    })
+      .overrideGuard(OrgGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    delete process.env.INVOICEXPRESS_WEBHOOK_TOKEN;
+    delete process.env.INVOICEXPRESS_ORG_ID;
+    await app?.close();
+  });
+
+  it("accepts an invoice-created webhook carrying the correct token", async () => {
+    await request(app.getHttpServer())
+      .post("/orgs/org_1/ingest/invoicexpress/invoices")
+      .set("x-invoicexpress-token", token)
+      .send(invoicePayload)
+      .expect(200);
+
+    expect(ingestInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "987654",
+        orgId: "org_1",
+        orderId: "order_1",
+      }),
+      expect.any(Date),
+    );
+    expect(completeWebhook).toHaveBeenCalledWith("invoicexpress", "987654");
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["wrong", "not-the-token"],
+  ])("rejects a %s token", async (_label, providedToken) => {
+    const webhook = request(app.getHttpServer()).post(
+      "/orgs/org_1/ingest/invoicexpress/invoices",
+    );
+    if (providedToken) webhook.set("x-invoicexpress-token", providedToken);
+
+    await webhook.send(invoicePayload).expect(401);
+    expect(ingestInvoice).not.toHaveBeenCalled();
+  });
+
+  it("rejects a valid token for an organization not mapped to the URL", async () => {
+    await request(app.getHttpServer())
+      .post("/orgs/org_2/ingest/invoicexpress/invoices")
+      .set("x-invoicexpress-token", token)
+      .send(invoicePayload)
+      .expect(401);
+
+    expect(ingestInvoice).not.toHaveBeenCalled();
+  });
+
+  it("accepts a replay without processing it again", async () => {
+    claimWebhook.mockResolvedValue(false);
+
+    const response = await request(app.getHttpServer())
+      .post("/orgs/org_1/ingest/invoicexpress/invoices")
+      .set("x-invoicexpress-token", token)
+      .send(invoicePayload)
+      .expect(200);
+
+    expect(response.body.duplicate).toBe(true);
+    expect(ingestInvoice).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges but does not evaluate a webhook for a billing-paused organization", async () => {
+    canIngest.mockResolvedValue(false);
+
+    const response = await request(app.getHttpServer())
+      .post("/orgs/org_1/ingest/invoicexpress/invoices")
+      .set("x-invoicexpress-token", token)
+      .send(invoicePayload)
+      .expect(200);
+
+    expect(response.body.billingPaused).toBe(true);
+    expect(ingestInvoice).not.toHaveBeenCalled();
+    expect(completeWebhook).toHaveBeenCalledWith("invoicexpress", "987654");
+  });
+
+  it("rejects a malformed invoice payload", async () => {
+    await request(app.getHttpServer())
+      .post("/orgs/org_1/ingest/invoicexpress/invoices")
+      .set("x-invoicexpress-token", token)
+      .send({ invoice: { id: 1 } })
+      .expect(400);
+
+    expect(claimWebhook).not.toHaveBeenCalled();
   });
 });

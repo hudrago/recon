@@ -14,23 +14,65 @@ export class OrganizationDeletionService {
       });
       if (!organization) throw new NotFoundException();
 
-      const membership = organization.members.find((member) => member.userId === userId);
-      if (!membership?.role.split(',').map((role) => role.trim()).includes('owner')) throw new ForbiddenException();
-      if (organization.slug !== confirmation) throw new ConflictException('ORGANIZATION_CONFIRMATION_MISMATCH');
-      if (organization.members.length !== 1) throw new ConflictException('ORGANIZATION_HAS_OTHER_MEMBERS');
+      const membership = organization.members.find(
+        (member) => member.userId === userId,
+      );
+      if (
+        !membership?.role
+          .split(",")
+          .map((role) => role.trim())
+          .includes("owner")
+      )
+        throw new ForbiddenException();
+      if (organization.slug !== confirmation)
+        throw new ConflictException("ORGANIZATION_CONFIRMATION_MISMATCH");
+      if (organization.members.length !== 1)
+        throw new ConflictException("ORGANIZATION_HAS_OTHER_MEMBERS");
 
-      const [exceptions, pending, refunds, webhooks, actions, audits] = await Promise.all([
+      // Subscription rows aren't counted here: every organization gets one automatically at
+      // creation (see BetterAuthService's afterCreateOrganization hook), and it cascades away
+      // with the organization (see the Subscription foreign key). Only real financial/operational
+      // history — actual paid orders and invoices — should block deletion.
+      const [
+        exceptions,
+        pending,
+        refunds,
+        invoices,
+        webhooks,
+        actions,
+        audits,
+        processedOrders,
+        billingInvoices,
+      ] = await Promise.all([
         transaction.exceptionRecord.count({ where: { orgId } }),
         transaction.pendingEvaluation.count({ where: { orgId } }),
         transaction.refundRecord.count({ where: { orgId } }),
+        transaction.invoiceRecord.count({ where: { orgId } }),
         transaction.webhookReceipt.count({ where: { orgId } }),
         transaction.executedAction.count({ where: { orgId } }),
         transaction.auditLogEntry.count({ where: { orgId } }),
+        transaction.processedOrder.count({ where: { orgId } }),
+        transaction.billingInvoice.count({ where: { orgId } }),
       ]);
-      if (exceptions + pending + refunds + webhooks + actions + audits > 0) throw new ConflictException('ORGANIZATION_RETENTION_REQUIRED');
+      if (
+        exceptions +
+          pending +
+          refunds +
+          invoices +
+          webhooks +
+          actions +
+          audits +
+          processedOrders +
+          billingInvoices >
+        0
+      )
+        throw new ConflictException("ORGANIZATION_RETENTION_REQUIRED");
 
-      await transaction.session.updateMany({ where: { activeOrganizationId: orgId }, data: { activeOrganizationId: null } });
+      await transaction.session.updateMany({
+        where: { activeOrganizationId: orgId },
+        data: { activeOrganizationId: null },
+      });
       await transaction.organization.delete({ where: { id: orgId } });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    };, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 }

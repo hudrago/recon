@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { usePathname } from 'next/navigation';
-import { Building2, LogOut, Settings } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
-import { Brand } from './Brand';
-import { HeaderSelectMenu } from './HeaderSelectMenu';
-import { PreferencesControls } from './PreferencesControls';
-import { usePreferences } from './PreferencesProvider';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { Building2, LogOut, Settings, Wallet } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import { Brand } from "./Brand";
+import { HeaderSelectMenu } from "./HeaderSelectMenu";
+import { PreferencesControls } from "./PreferencesControls";
+import { usePreferences } from "./PreferencesProvider";
 
 export function SessionControls() {
   const router = useRouter();
@@ -17,18 +17,21 @@ export function SessionControls() {
   const { data: organizations } = authClient.useListOrganizations();
   const { t } = usePreferences();
 
-  const isAppRoute = pathname.startsWith('/exceptions') || pathname.startsWith('/settings');
+  const isAppRoute =
+    pathname.startsWith("/exceptions") ||
+    pathname.startsWith("/billing") ||
+    pathname.startsWith("/settings");
   if (!session || !isAppRoute) return null;
 
   async function switchOrganization(organizationId: string) {
     await authClient.organization.setActive({ organizationId });
-    router.push('/exceptions');
+    router.push("/exceptions");
     router.refresh();
   }
 
   async function signOut() {
     await authClient.signOut();
-    router.push('/');
+    router.push("/");
     router.refresh();
   }
 
@@ -36,26 +39,82 @@ export function SessionControls() {
     <header className="app-header">
       <div className="app-header-inner">
         <Brand compact />
-        <nav aria-label={t('session.navigation')}><Link href="/exceptions" aria-current={pathname.startsWith('/exceptions') ? 'page' : undefined}>{t('session.exceptions')}</Link><Link href="/settings" aria-current={pathname.startsWith('/settings') ? 'page' : undefined}><Settings size={16} aria-hidden="true" />{t('session.settings')}</Link></nav>
+        <nav aria-label={t("session.navigation")}>
+          <Link
+            href="/exceptions"
+            aria-current={
+              pathname.startsWith("/exceptions") ? "page" : undefined
+            }
+          >
+            {t("session.exceptions")}
+          </Link>
+          <Link
+            href="/billing"
+            aria-current={pathname.startsWith("/billing") ? "page" : undefined}
+          >
+            <Wallet size={16} aria-hidden="true" />
+            {t("session.billing")}
+          </Link>
+          <Link
+            href="/settings"
+            aria-current={pathname.startsWith("/settings") ? "page" : undefined}
+          >
+            <Settings size={16} aria-hidden="true" />
+            {t("session.settings")}
+          </Link>
+        </nav>
         <div className="session-actions">
           <PreferencesControls />
           {organizations && organizations.length > 0 ? (
-            <label className="organization-picker" title={t('session.activeOrganization')}>
+            <label
+              className="organization-picker"
+              title={t("session.activeOrganization")}
+            >
               <Building2 size={18} aria-hidden="true" />
-              <select aria-label={t('session.activeOrganization')} value={session.session.activeOrganizationId ?? ''} onChange={(event) => void switchOrganization(event.target.value)}>
-                {!session.session.activeOrganizationId ? <option value="" disabled>{t('session.selectOrganization')}</option> : null}
-                {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+              <select
+                aria-label={t("session.activeOrganization")}
+                value={session.session.activeOrganizationId ?? ""}
+                onChange={(event) =>
+                  void switchOrganization(event.target.value)
+                }
+              >
+                {!session.session.activeOrganizationId ? (
+                  <option value="" disabled>
+                    {t("session.selectOrganization")}
+                  </option>
+                ) : null}
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
           <div className="mobile-session-menus">
             <PreferencesControls iconMenus />
             {organizations && organizations.length > 0 ? (
-              <HeaderSelectMenu label={t('session.activeOrganization')} icon={<Building2 size={18} aria-hidden="true" />} value={session.session.activeOrganizationId ?? ''} options={organizations.map((organization) => ({ value: organization.id, label: organization.name }))} onSelect={(organizationId) => void switchOrganization(organizationId)} />
+              <HeaderSelectMenu
+                label={t("session.activeOrganization")}
+                icon={<Building2 size={18} aria-hidden="true" />}
+                value={session.session.activeOrganizationId ?? ""}
+                options={organizations.map((organization) => ({
+                  value: organization.id,
+                  label: organization.name,
+                }))}
+                onSelect={(organizationId) =>
+                  void switchOrganization(organizationId)
+                }
+              />
             ) : null}
           </div>
           <span className="session-email">{session.user.email}</span>
-          <button className="icon-button" onClick={() => void signOut()} aria-label={t('session.signOut')} title={t('session.signOut')}>
+          <button
+            className="icon-button"
+            onClick={() => void signOut()}
+            aria-label={t("session.signOut")}
+            title={t("session.signOut")}
+          >
             <LogOut size={18} aria-hidden="true" />
           </button>
         </div>

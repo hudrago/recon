@@ -3,8 +3,13 @@ import { betterAuth } from 'better-auth';
 import { createAuthMiddleware } from 'better-auth/api';
 import { organization } from 'better-auth/plugins';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { BillingService } from '../billing/billing.service';
 import type { PrismaService } from '../prisma.service';
 import { BetterAuthService } from './betterAuth.service';
+
+function createBillingServiceStub() {
+  return { ensureTrial: vi.fn().mockResolvedValue(undefined) } as unknown as BillingService;
+}
 
 vi.mock('@better-auth/prisma-adapter', () => ({ prismaAdapter: vi.fn(() => ({})) }));
 vi.mock('better-auth', () => ({ betterAuth: vi.fn(() => ({ api: {} })) }));
@@ -27,7 +32,7 @@ describe('BetterAuthService', () => {
     process.env.NODE_ENV = 'production';
     process.env.BETTER_AUTH_SECRET = 'production-secret-with-at-least-32-characters';
 
-    new BetterAuthService({} as PrismaService);
+    new BetterAuthService({} as PrismaService, createBillingServiceStub());
 
     expect(prismaAdapter).toHaveBeenCalledWith({}, { provider: 'postgresql' });
     expect(betterAuth).toHaveBeenCalledWith(expect.objectContaining({
@@ -38,7 +43,7 @@ describe('BetterAuthService', () => {
   it('enables guarded account deletion and disables the permissive organization endpoint', async () => {
     const member = { findMany: vi.fn().mockResolvedValue([{ role: 'admin,owner' }]) };
     const invitation = { count: vi.fn().mockResolvedValue(0) };
-    new BetterAuthService({ member, invitation } as unknown as PrismaService);
+    new BetterAuthService({ member, invitation } as unknown as PrismaService, createBillingServiceStub());
 
     const options = vi.mocked(betterAuth).mock.calls[0][0];
     expect(options.user?.deleteUser?.enabled).toBe(true);
@@ -47,8 +52,17 @@ describe('BetterAuthService', () => {
     expect(organization).toHaveBeenCalledWith(expect.objectContaining({ disableOrganizationDeletion: true }));
   });
 
+  it('provisions a trial subscription when a new organization is created', async () => {
+    const billing = createBillingServiceStub();
+    new BetterAuthService({} as PrismaService, billing);
+
+    const organizationOptions = vi.mocked(organization).mock.calls[0][0] as { organizationHooks: { afterCreateOrganization: (data: { organization: { id: string } }) => Promise<void> } };
+    await organizationOptions.organizationHooks.afterCreateOrganization({ organization: { id: 'org_1' } });
+    expect(billing.ensureTrial).toHaveBeenCalledWith('org_1', expect.any(Date));
+  });
+
   it('requires a password at the server boundary for account deletion', async () => {
-    new BetterAuthService({} as PrismaService);
+    new BetterAuthService({} as PrismaService, createBillingServiceStub());
     const options = vi.mocked(betterAuth).mock.calls[0][0];
     const beforeHook = vi.mocked(createAuthMiddleware).mock.calls[0][0];
 

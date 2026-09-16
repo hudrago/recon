@@ -62,16 +62,36 @@ export class ExceptionService {
 
   // Re-ingesting the same order (duplicate webhook) must not create a duplicate exception.
   async ingestOrder(order: Order, invoices: Invoice[], now: Date): Promise<DomainException | null> {
+    const knownInvoices = [...invoices, ...await this.store.listInvoices(order.orgId, order.id)];
     return this.ingestEvaluation(
       {
         id: `INVOICE_MISSING:${order.orgId}:${order.id}`,
         dueAt: new Date(new Date(order.paidAt).getTime() + INVOICE_MISSING_THRESHOLD_MS).toISOString(),
         kind: 'invoice-missing',
         order,
-        invoices,
+        invoices: knownInvoices,
       },
       now,
     );
+  }
+
+  // An invoice never opens its own exception — it only cancels/resolves a pending or open
+  // INVOICE_MISSING for the same order, mirroring how ingestRefund resolves REFUND_MISSING.
+  async ingestInvoice(invoice: Invoice, now: Date): Promise<void> {
+    await this.store.saveInvoice(invoice);
+    await this.store.cancelPendingInvoiceEvaluation(invoice.orgId, invoice.orderId);
+    const invoiceMissing = await this.store.findInvoiceMissing(invoice.orgId, invoice.orderId);
+    if (invoiceMissing && (invoiceMissing.status === 'open' || invoiceMissing.status === 'approved')) {
+      const resolved = { ...invoiceMissing, status: 'resolved' as const };
+      await this.store.saveWithAudit(resolved, {
+        orgId: invoice.orgId,
+        actor: 'system:invoicexpress-webhook',
+        reason: `Observed InvoiceXpress invoice ${invoice.id}`,
+        before: invoiceMissing,
+        after: resolved,
+        at: now.toISOString(),
+      });
+    }
   }
 
   // Re-ingesting the same refund (duplicate webhook) must not create a duplicate exception.

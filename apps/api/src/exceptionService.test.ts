@@ -221,6 +221,61 @@ describe('ExceptionService — INVOICE_MISSING', () => {
     await service.ingestOrder(order, [], invoiceMissingNow);
     expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
   });
+
+  it("does not create an invoice exception when the InvoiceXpress webhook arrives first", async () => {
+    const invoice: Invoice = {
+      id: "inv_first",
+      orgId: "org_1",
+      orderId: "order_1",
+      issuedAt: invoiceMissingNow.toISOString(),
+    };
+    await service.ingestInvoice(invoice, invoiceMissingNow);
+    await service.ingestOrder(order, [], invoiceMissingNow);
+    expect(
+      (await service.listOpenExceptions("org_1")).filter(
+        (exception) => exception.code === "INVOICE_MISSING",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("cancels pending invoice evaluation when the invoice webhook arrives later", async () => {
+    const beforeThreshold = new Date(
+      new Date(order.paidAt).getTime() + INVOICE_MISSING_THRESHOLD_MS - 1000,
+    );
+    await service.ingestOrder(order, [], beforeThreshold);
+    await service.ingestInvoice(
+      {
+        id: "inv_later",
+        orgId: "org_1",
+        orderId: "order_1",
+        issuedAt: beforeThreshold.toISOString(),
+      },
+      beforeThreshold,
+    );
+    expect(await service.reevaluatePending(invoiceMissingNow)).toBe(0);
+    expect(
+      (await service.listOpenExceptions("org_1")).filter(
+        (exception) => exception.code === "INVOICE_MISSING",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("resolves an open invoice exception when InvoiceXpress reports the invoice", async () => {
+    await service.ingestOrder(order, [], invoiceMissingNow);
+    await service.ingestInvoice(
+      {
+        id: "inv_resolve",
+        orgId: "org_1",
+        orderId: "order_1",
+        issuedAt: invoiceMissingNow.toISOString(),
+      },
+      invoiceMissingNow,
+    );
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
+    expect(
+      (await service.getException(`INVOICE_MISSING:org_1:${order.id}`))?.status,
+    ).toBe("resolved");
+  });
 });
 
 const refund: Refund = {

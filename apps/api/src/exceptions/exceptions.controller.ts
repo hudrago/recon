@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zodValidationPipe';
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { OrgGuard } from '../auth/org.guard';
+import { BillingActionGuard } from '../billing/billing.guard';
 import { ExceptionService } from '../exceptionService';
 
 const dismissSchema = z.object({ reason: z.string().min(1) });
@@ -67,6 +68,7 @@ export class ExceptionsController {
 
   @Post(':exceptionId/actions/refund')
   @HttpCode(200)
+  @UseGuards(BillingActionGuard)
   async executeRefund(
     @Param('orgId') orgId: string,
     @Param('exceptionId') exceptionId: string,
