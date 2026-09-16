@@ -30,6 +30,7 @@ export function SessionControls() {
           value={session.session.activeOrganizationId ?? ''}
           onChange={(event) => void switchOrganization(event.target.value)}
         >
+          {!session.session.activeOrganizationId ? <option value="" disabled>Select workspace</option> : null}
           {organizations.map((organization) => (
             <option key={organization.id} value={organization.id}>
               {organization.name}

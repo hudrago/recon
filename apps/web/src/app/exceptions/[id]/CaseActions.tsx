@@ -16,6 +16,7 @@ export function CaseActions({ orgId, exceptionId, orderId: _orderId, status }: C
   const [isPending, startTransition] = useTransition();
   const [reason, setReason] = useState('');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   function runAction(action: () => Promise<{ error?: string }>) {
@@ -41,10 +42,14 @@ export function CaseActions({ orgId, exceptionId, orderId: _orderId, status }: C
       {status === 'open' && (
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1 text-sm text-text-secondary">
-            Approved refund amount (EUR)
+            Approved refund amount
             <input required type="number" step="0.01" min="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-text-primary" />
           </label>
-          <button type="button" disabled={isPending || reason.trim().length === 0 || amount.length === 0} onClick={() => runAction(() => approveException(orgId, exceptionId, reason, amount))} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          <label className="flex flex-col gap-1 text-sm text-text-secondary">
+            Currency
+            <input required type="text" maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} className="w-24 rounded-md border border-border bg-background px-3 py-2 text-text-primary uppercase" />
+          </label>
+          <button type="button" disabled={isPending || reason.trim().length === 0 || amount.length === 0 || !/^[A-Z]{3}$/.test(currency)} onClick={() => runAction(() => approveException(orgId, exceptionId, reason, amount, currency))} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             Approve
           </button>
         </div>

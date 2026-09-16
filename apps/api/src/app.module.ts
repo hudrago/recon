@@ -9,6 +9,7 @@ import { ExceptionService } from './exceptionService';
 import { EXCEPTION_STORE } from './exceptionStore';
 import { FakeRefundGateway } from './gateways/fakeRefundGateway';
 import { ShopifyRefundGateway } from './gateways/shopifyRefundGateway';
+import { HealthController } from './health.controller';
 import { IngestController } from './ingest/ingest.controller';
 import { PrismaService } from './prisma.service';
 import { ReevaluationJob, ReevaluationQueue } from './reevaluation/reevaluation.job';
@@ -24,7 +25,7 @@ const usePrisma = Boolean(process.env.DATABASE_URL);
 const useShopify = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && process.env.SHOPIFY_CLIENT_ID && process.env.SHOPIFY_CLIENT_SECRET);
 
 @Module({
-  controllers: [ExceptionsController, IngestController],
+  controllers: [ExceptionsController, HealthController, IngestController],
   providers: [
     ...(usePrisma
       ? [

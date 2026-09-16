@@ -37,7 +37,7 @@ export function mapShopifyRefundCreatedToDomain(payload: unknown, orgId: string)
   if (!currency || !Number.isFinite(amount) || amount <= 0) return null;
 
   return {
-    id: String(result.data.id),
+    id: result.data.admin_graphql_api_id,
     orgId,
     orderId: String(result.data.order_id),
     amount,

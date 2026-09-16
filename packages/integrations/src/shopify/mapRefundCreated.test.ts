@@ -5,7 +5,7 @@ import { mapShopifyRefundCreatedToDomain } from './mapRefundCreated';
 describe('mapShopifyRefundCreatedToDomain', () => {
   it('maps successful transactions to one canonical Refund', () => {
     expect(mapShopifyRefundCreatedToDomain(shopifyRefundCreatedFixture, 'org_1')).toEqual({
-      id: '890088186047892319',
+      id: 'gid://shopify/Refund/890088186047892319',
       orgId: 'org_1',
       orderId: '820982911946154508',
       amount: 30,

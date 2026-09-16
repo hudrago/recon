@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.4",

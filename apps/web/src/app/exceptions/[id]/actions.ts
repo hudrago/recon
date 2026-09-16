@@ -3,14 +3,16 @@
 import { revalidatePath } from 'next/cache';
 import { apiFetch } from '@/lib/api';
 
-export async function approveException(orgId: string, exceptionId: string, reason: string, amountInput: string) {
+export async function approveException(orgId: string, exceptionId: string, reason: string, amountInput: string, currencyInput: string) {
   if (!/^\d+(\.\d{1,2})?$/.test(amountInput)) return { error: 'Enter a valid amount with at most two decimals' };
   const amountMinor = Math.round(Number(amountInput) * 100);
   if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return { error: 'Enter a valid amount' };
+  const currency = currencyInput.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) return { error: 'Enter a valid three-letter currency code' };
   const res = await apiFetch(`/orgs/${orgId}/exceptions/${exceptionId}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason, amountMinor, currency: 'EUR' }),
+    body: JSON.stringify({ reason, amountMinor, currency }),
   });
   if (!res.ok) return { error: `Failed to approve (${res.status})` };
   revalidatePath(`/exceptions/${exceptionId}`);
