@@ -8,218 +8,397 @@ import {
 } from '@recon/domain';
 import { ExceptionService } from './exceptionService';
 import { FakeRefundGateway } from './gateways/fakeRefundGateway';
-import { InMemoryExceptionStore } from './stores/inMemoryExceptionStore';
+import { FakeRestockGateway } from "./gateways/fakeRestockGateway";
+import { FakeInvoiceGateway } from "./gateways/fakeInvoiceGateway";
+import { InMemoryExceptionStore } from "./stores/inMemoryExceptionStore";
 
 const returnRecord: ReturnRecord = {
-  id: 'ret_1',
-  orgId: 'org_1',
-  orderId: 'order_1',
-  receivedAt: '2026-09-01T10:00:00.000Z',
+  id: "ret_1",
+  orgId: "org_1",
+  orderId: "order_1",
+  receivedAt: "2026-09-01T10:00:00.000Z",
 };
 
-const now = new Date(new Date(returnRecord.receivedAt).getTime() + REFUND_MISSING_THRESHOLD_MS + 1000);
+const now = new Date(
+  new Date(returnRecord.receivedAt).getTime() +
+    REFUND_MISSING_THRESHOLD_MS +
+    1000,
+);
 
-describe('ExceptionService', () => {
+describe("ExceptionService", () => {
   let service: ExceptionService;
 
   beforeEach(() => {
-    service = new ExceptionService(new InMemoryExceptionStore(), new FakeRefundGateway());
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
   });
 
-  it('creates an open exception when a return has no matching refund past the threshold', async () => {
+  it("creates an open exception when a return has no matching refund past the threshold", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
-  it('does not create an exception when a matching refund already exists', async () => {
+  it("does not create an exception when a matching refund already exists", async () => {
     const refunds: Refund[] = [
-      { id: 'rf_1', orgId: 'org_1', orderId: 'order_1', amount: 10, currency: 'EUR', issuedAt: now.toISOString() },
+      {
+        id: "rf_1",
+        orgId: "org_1",
+        orderId: "order_1",
+        amount: 10,
+        currency: "EUR",
+        issuedAt: now.toISOString(),
+      },
     ];
     await service.ingestReturn(returnRecord, refunds, now);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
   });
 
-  it('does not create a refund exception when the refund webhook arrives first', async () => {
-    const refund: Refund = { id: 'rf_first', orgId: 'org_1', orderId: 'order_1', amount: 10, currency: 'EUR', issuedAt: now.toISOString() };
+  it("does not create a refund exception when the refund webhook arrives first", async () => {
+    const refund: Refund = {
+      id: "rf_first",
+      orgId: "org_1",
+      orderId: "order_1",
+      amount: 10,
+      currency: "EUR",
+      issuedAt: now.toISOString(),
+    };
     await service.ingestRefund(refund, [], now);
     await service.ingestReturn(returnRecord, [], now);
-    expect((await service.listOpenExceptions('org_1')).filter((exception) => exception.code === 'REFUND_MISSING')).toHaveLength(0);
+    expect(
+      (await service.listOpenExceptions("org_1")).filter(
+        (exception) => exception.code === "REFUND_MISSING",
+      ),
+    ).toHaveLength(0);
   });
 
-  it('cancels pending refund evaluation when the refund webhook arrives later', async () => {
-    const beforeThreshold = new Date(new Date(returnRecord.receivedAt).getTime() + REFUND_MISSING_THRESHOLD_MS - 1000);
+  it("cancels pending refund evaluation when the refund webhook arrives later", async () => {
+    const beforeThreshold = new Date(
+      new Date(returnRecord.receivedAt).getTime() +
+        REFUND_MISSING_THRESHOLD_MS -
+        1000,
+    );
     await service.ingestReturn(returnRecord, [], beforeThreshold);
-    await service.ingestRefund({ id: 'rf_later', orgId: 'org_1', orderId: 'order_1', amount: 10, currency: 'EUR', issuedAt: beforeThreshold.toISOString() }, [], beforeThreshold);
+    await service.ingestRefund(
+      {
+        id: "rf_later",
+        orgId: "org_1",
+        orderId: "order_1",
+        amount: 10,
+        currency: "EUR",
+        issuedAt: beforeThreshold.toISOString(),
+      },
+      [],
+      beforeThreshold,
+    );
     expect(await service.reevaluatePending(now)).toBe(0);
-    expect((await service.listOpenExceptions('org_1')).filter((exception) => exception.code === 'REFUND_MISSING')).toHaveLength(0);
+    expect(
+      (await service.listOpenExceptions("org_1")).filter(
+        (exception) => exception.code === "REFUND_MISSING",
+      ),
+    ).toHaveLength(0);
   });
 
-  it('resolves an open refund exception when Shopify reports the refund', async () => {
+  it("resolves an open refund exception when Shopify reports the refund", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    await service.ingestRefund({ id: 'rf_resolve', orgId: 'org_1', orderId: 'order_1', amount: 10, currency: 'EUR', issuedAt: now.toISOString() }, [], now);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
-    expect((await service.getException(`REFUND_MISSING:org_1:${returnRecord.id}`))?.status).toBe('resolved');
+    await service.ingestRefund(
+      {
+        id: "rf_resolve",
+        orgId: "org_1",
+        orderId: "order_1",
+        amount: 10,
+        currency: "EUR",
+        issuedAt: now.toISOString(),
+      },
+      [],
+      now,
+    );
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
+    expect(
+      (await service.getException(`REFUND_MISSING:org_1:${returnRecord.id}`))
+        ?.status,
+    ).toBe("resolved");
   });
 
-  it('ingesting the same return twice (duplicate webhook) does not duplicate the exception', async () => {
+  it("ingesting the same return twice (duplicate webhook) does not duplicate the exception", async () => {
     await service.ingestReturn(returnRecord, [], now);
     await service.ingestReturn(returnRecord, [], now);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
-  it('creates an exception when a below-threshold return becomes due', async () => {
-    const beforeThreshold = new Date(new Date(returnRecord.receivedAt).getTime() + REFUND_MISSING_THRESHOLD_MS - 1000);
+  it("creates an exception when a below-threshold return becomes due", async () => {
+    const beforeThreshold = new Date(
+      new Date(returnRecord.receivedAt).getTime() +
+        REFUND_MISSING_THRESHOLD_MS -
+        1000,
+    );
     await service.ingestReturn(returnRecord, [], beforeThreshold);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
 
     const detected = await service.reevaluatePending(now);
 
     expect(detected).toBe(1);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
     expect(await service.reevaluatePending(now)).toBe(0);
   });
 
-  it('refuses to execute a refund action before the exception is approved', async () => {
+  it("refuses to execute a refund action before the exception is approved", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
+    const [exception] = await service.listOpenExceptions("org_1");
     await expect(
-      service.executeRefund(
-        { exceptionId: exception.id },
-        'operator_1',
-      ),
+      service.executeRefund({ exceptionId: exception.id }, "operator_1"),
     ).rejects.toThrow(/not approved/);
   });
 
-  it('executes the refund once approved and records an audit entry', async () => {
+  it("executes the refund once approved and records an audit entry", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
 
     const result = await service.executeRefund(
       { exceptionId: exception.id },
-      'operator_1',
+      "operator_1",
     );
 
-    expect(result.refundId).toBe('refund_refund:REFUND_MISSING:org_1:ret_1');
-    expect(await service.getAuditLog('org_1')).toHaveLength(2);
+    expect(result.refundId).toBe("refund_refund:REFUND_MISSING:org_1:ret_1");
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
   });
 
-  it('replaying the same idempotency key does not issue a duplicate refund', async () => {
+  it("scopes the redacted audit timeline to a single exception and hides raw before/after state", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
+    await service.executeRefund({ exceptionId: exception.id }, "operator_1");
+
+    const timeline = await service.getAuditLogForException(
+      "org_1",
+      exception.id,
+    );
+
+    expect(timeline).toHaveLength(2);
+    expect(timeline[0]).toMatchObject({
+      actor: "operator_1",
+      statusBefore: "open",
+      statusAfter: "approved",
+    });
+    expect(timeline[1]).toMatchObject({
+      actor: "operator_1",
+      statusBefore: "approved",
+      statusAfter: "resolved",
+      actionKind: "REFUND",
+    });
+    expect((timeline[1].result as { refundId: string }).refundId).toBe(
+      "refund_refund:REFUND_MISSING:org_1:ret_1",
+    );
+    for (const entry of timeline) {
+      expect(entry).not.toHaveProperty("before");
+      expect(entry).not.toHaveProperty("after");
+    }
+  });
+
+  it("replaying the same idempotency key does not issue a duplicate refund", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
 
     const request = { exceptionId: exception.id };
-    const first = await service.executeRefund(request, 'operator_1');
-    const second = await service.executeRefund(request, 'operator_1');
+    const first = await service.executeRefund(request, "operator_1");
+    const second = await service.executeRefund(request, "operator_1");
 
     expect(second).toEqual(first);
-    expect(await service.getAuditLog('org_1')).toHaveLength(2);
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
   });
 
-  it('allows only one concurrent request to reach the refund gateway', async () => {
+  it("allows only one concurrent request to reach the refund gateway", async () => {
     let releaseGateway!: () => void;
-    const gatewayResult = new Promise<{ refundId: string }>((resolve) => { releaseGateway = () => resolve({ refundId: 'refund_key_concurrent' }); });
+    const gatewayResult = new Promise<{ refundId: string }>((resolve) => {
+      releaseGateway = () => resolve({ refundId: "refund_key_concurrent" });
+    });
     const createRefund = vi.fn().mockReturnValue(gatewayResult);
-    service = new ExceptionService(new InMemoryExceptionStore(), { createRefund });
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      { createRefund },
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
     const request = { exceptionId: exception.id };
 
-    const first = service.executeRefund(request, 'operator_1');
-    await expect(service.executeRefund(request, 'operator_1')).rejects.toThrow(/already in progress/);
+    const first = service.executeRefund(request, "operator_1");
+    await expect(service.executeRefund(request, "operator_1")).rejects.toThrow(
+      /already in progress/,
+    );
     releaseGateway();
-    await expect(first).resolves.toEqual({ refundId: 'refund_key_concurrent' });
+    await expect(first).resolves.toEqual({
+      kind: "REFUND",
+      refundId: "refund_key_concurrent",
+    });
     expect(createRefund).toHaveBeenCalledOnce();
   });
 
-  it('persists a provider failure and permits retry with the same key', async () => {
-    const createRefund = vi.fn()
-      .mockRejectedValueOnce(new Error('Shopify temporarily unavailable'))
-      .mockResolvedValueOnce({ refundId: 'refund_key_retry' });
-    service = new ExceptionService(new InMemoryExceptionStore(), { createRefund });
+  it("persists a provider failure and permits retry with the same key", async () => {
+    const createRefund = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Shopify temporarily unavailable"))
+      .mockResolvedValueOnce({ refundId: "refund_key_retry" });
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      { createRefund },
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
     const request = { exceptionId: exception.id };
 
-    await expect(service.executeRefund(request, 'operator_1')).rejects.toThrow('Shopify temporarily unavailable');
-    await expect(service.executeRefund(request, 'operator_1')).resolves.toEqual({ refundId: 'refund_key_retry' });
+    await expect(service.executeRefund(request, "operator_1")).rejects.toThrow(
+      "Shopify temporarily unavailable",
+    );
+    await expect(service.executeRefund(request, "operator_1")).resolves.toEqual(
+      { kind: "REFUND", refundId: "refund_key_retry" },
+    );
     expect(createRefund).toHaveBeenCalledTimes(2);
   });
 
-  it('retries ambiguous local completion with identical provider parameters', async () => {
+  it("retries ambiguous local completion with identical provider parameters", async () => {
     const store = new InMemoryExceptionStore();
     const completeAction = store.completeAction.bind(store);
-    vi.spyOn(store, 'completeAction')
-      .mockRejectedValueOnce(new Error('Database commit failed'))
+    vi.spyOn(store, "completeAction")
+      .mockRejectedValueOnce(new Error("Database commit failed"))
       .mockImplementation(completeAction);
-    const createRefund = vi.fn().mockResolvedValue({ refundId: 'refund_ambiguous' });
-    service = new ExceptionService(store, { createRefund });
+    const createRefund = vi
+      .fn()
+      .mockResolvedValue({ refundId: "refund_ambiguous" });
+    service = new ExceptionService(
+      store,
+      { createRefund },
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
 
-    await expect(service.executeRefund({ exceptionId: exception.id }, 'operator_1')).rejects.toThrow('Database commit failed');
-    await expect(service.executeRefund({ exceptionId: exception.id }, 'operator_1')).resolves.toEqual({ refundId: 'refund_ambiguous' });
+    await expect(
+      service.executeRefund({ exceptionId: exception.id }, "operator_1"),
+    ).rejects.toThrow("Database commit failed");
+    await expect(
+      service.executeRefund({ exceptionId: exception.id }, "operator_1"),
+    ).resolves.toEqual({ kind: "REFUND", refundId: "refund_ambiguous" });
     expect(createRefund).toHaveBeenCalledTimes(2);
     expect(createRefund.mock.calls[1]).toEqual(createRefund.mock.calls[0]);
   });
 
-  it('rejects approval without immutable refund terms', async () => {
+  it("rejects approval without immutable refund terms", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await expect(service.approve(exception.id, 'operator_1', 'Customer refund approved')).rejects.toThrow(/requires immutable/);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await expect(
+      service.approve(exception.id, "operator_1", "Customer refund approved"),
+    ).rejects.toThrow(/requires immutable/);
   });
 
-  it('does not allow a resolved exception to be approved again', async () => {
+  it("does not allow a resolved exception to be approved again", async () => {
     await service.ingestReturn(returnRecord, [], now);
-    const [exception] = await service.listOpenExceptions('org_1');
-    await service.approve(exception.id, 'operator_1', 'Customer refund approved', { amountMinor: 1000, currency: 'EUR' });
-    await service.executeRefund({ exceptionId: exception.id }, 'operator_1');
-    await expect(service.approve(exception.id, 'operator_1', 'Approve again')).rejects.toThrow(/cannot be approved/);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Customer refund approved",
+      { amountMinor: 1000, currency: "EUR" },
+    );
+    await service.executeRefund({ exceptionId: exception.id }, "operator_1");
+    await expect(
+      service.approve(exception.id, "operator_1", "Approve again"),
+    ).rejects.toThrow(/cannot be approved/);
   });
 
-  it('returns undefined for a nonexistent exception id instead of throwing', async () => {
-    expect(await service.getException('does-not-exist')).toBeUndefined();
+  it("returns undefined for a nonexistent exception id instead of throwing", async () => {
+    expect(await service.getException("does-not-exist")).toBeUndefined();
   });
 });
 
 const order: Order = {
-  id: 'order_1',
-  orgId: 'org_1',
-  currency: 'EUR',
+  id: "order_1",
+  orgId: "org_1",
+  currency: "EUR",
   total: 42,
-  paidAt: '2026-09-01T10:00:00.000Z',
+  paidAt: "2026-09-01T10:00:00.000Z",
 };
 
-const invoiceMissingNow = new Date(new Date(order.paidAt).getTime() + INVOICE_MISSING_THRESHOLD_MS + 1000);
+const invoiceMissingNow = new Date(
+  new Date(order.paidAt).getTime() + INVOICE_MISSING_THRESHOLD_MS + 1000,
+);
 
-describe('ExceptionService — INVOICE_MISSING', () => {
+describe("ExceptionService — INVOICE_MISSING", () => {
   let service: ExceptionService;
 
   beforeEach(() => {
-    service = new ExceptionService(new InMemoryExceptionStore(), new FakeRefundGateway());
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
   });
 
-  it('creates an open exception when an order has no invoice past the threshold', async () => {
+  it("creates an open exception when an order has no invoice past the threshold", async () => {
     await service.ingestOrder(order, [], invoiceMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
-  it('does not create an exception when a matching invoice already exists', async () => {
+  it("does not create an exception when a matching invoice already exists", async () => {
     const invoices: Invoice[] = [
-      { id: 'inv_1', orgId: 'org_1', orderId: 'order_1', issuedAt: invoiceMissingNow.toISOString() },
+      {
+        id: "inv_1",
+        orgId: "org_1",
+        orderId: "order_1",
+        issuedAt: invoiceMissingNow.toISOString(),
+      },
     ];
     await service.ingestOrder(order, invoices, invoiceMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
   });
 
-  it('ingesting the same order twice (duplicate webhook) does not duplicate the exception', async () => {
+  it("ingesting the same order twice (duplicate webhook) does not duplicate the exception", async () => {
     await service.ingestOrder(order, [], invoiceMissingNow);
     await service.ingestOrder(order, [], invoiceMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
   it("does not create an invoice exception when the InvoiceXpress webhook arrives first", async () => {
@@ -276,76 +455,234 @@ describe('ExceptionService — INVOICE_MISSING', () => {
       (await service.getException(`INVOICE_MISSING:org_1:${order.id}`))?.status,
     ).toBe("resolved");
   });
+
+  it("refuses to execute an issue-invoice action before the exception is approved", async () => {
+    await service.ingestOrder(order, [], invoiceMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await expect(
+      service.executeIssueInvoice({ exceptionId: exception.id }, "operator_1"),
+    ).rejects.toThrow(/not approved/);
+  });
+
+  it("rejects an issue-invoice action against a REFUND_MISSING exception", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = (await service.listOpenExceptions("org_1")).filter(
+      (exception) => exception.code === "REFUND_MISSING",
+    );
+    await expect(
+      service.executeIssueInvoice({ exceptionId: exception.id }, "operator_1"),
+    ).rejects.toThrow(/does not authorize/);
+  });
+
+  it("executes the issue-invoice action once approved and records an audit entry", async () => {
+    await service.ingestOrder(order, [], invoiceMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Invoice issuance approved",
+    );
+
+    const result = await service.executeIssueInvoice(
+      { exceptionId: exception.id },
+      "operator_1",
+    );
+
+    expect(result.invoiceId).toBe(`invoice_invoice:${exception.id}`);
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
+  });
+
+  it("replaying the same idempotency key does not issue a duplicate invoice", async () => {
+    await service.ingestOrder(order, [], invoiceMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Invoice issuance approved",
+    );
+
+    const request = { exceptionId: exception.id };
+    const first = await service.executeIssueInvoice(request, "operator_1");
+    const second = await service.executeIssueInvoice(request, "operator_1");
+
+    expect(second).toEqual(first);
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
+  });
 });
 
 const refund: Refund = {
-  id: 'rf_1',
-  orgId: 'org_1',
-  orderId: 'order_1',
+  id: "rf_1",
+  orgId: "org_1",
+  orderId: "order_1",
   amount: 20,
-  currency: 'EUR',
-  issuedAt: '2026-09-01T10:00:00.000Z',
+  currency: "EUR",
+  issuedAt: "2026-09-01T10:00:00.000Z",
 };
 
-const restockMissingNow = new Date(new Date(refund.issuedAt).getTime() + RESTOCK_MISSING_THRESHOLD_MS + 1000);
+const restockMissingNow = new Date(
+  new Date(refund.issuedAt).getTime() + RESTOCK_MISSING_THRESHOLD_MS + 1000,
+);
 
-describe('ExceptionService — RESTOCK_MISSING', () => {
+describe("ExceptionService — RESTOCK_MISSING", () => {
   let service: ExceptionService;
 
   beforeEach(() => {
-    service = new ExceptionService(new InMemoryExceptionStore(), new FakeRefundGateway());
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
   });
 
-  it('creates an open exception when a refund has no inventory adjustment past the threshold', async () => {
+  it("creates an open exception when a refund has no inventory adjustment past the threshold", async () => {
     await service.ingestRefund(refund, [], restockMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
-  it('does not create an exception when a matching inventory adjustment already exists', async () => {
+  it("does not create an exception when a matching inventory adjustment already exists", async () => {
     const adjustments: InventoryAdjustment[] = [
-      { id: 'adj_1', orgId: 'org_1', orderId: 'order_1', refundId: 'rf_1', adjustedAt: restockMissingNow.toISOString() },
+      {
+        id: "adj_1",
+        orgId: "org_1",
+        orderId: "order_1",
+        refundId: "rf_1",
+        quantity: 1,
+        adjustedAt: restockMissingNow.toISOString(),
+      },
     ];
     await service.ingestRefund(refund, adjustments, restockMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
   });
 
-  it('ingesting the same refund twice (duplicate webhook) does not duplicate the exception', async () => {
+  it("ingesting the same refund twice (duplicate webhook) does not duplicate the exception", async () => {
     await service.ingestRefund(refund, [], restockMissingNow);
     await service.ingestRefund(refund, [], restockMissingNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
+  });
+
+  it("refuses to execute a restock action before the exception is approved", async () => {
+    await service.ingestRefund(refund, [], restockMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await expect(
+      service.executeRestock({ exceptionId: exception.id }, "operator_1"),
+    ).rejects.toThrow(/not approved/);
+  });
+
+  it("rejects a restock action against a REFUND_MISSING exception", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = (await service.listOpenExceptions("org_1")).filter(
+      (exception) => exception.code === "REFUND_MISSING",
+    );
+    await expect(
+      service.executeRestock({ exceptionId: exception.id }, "operator_1"),
+    ).rejects.toThrow(/does not authorize/);
+  });
+
+  it("executes the restock once approved and records an audit entry", async () => {
+    await service.ingestRefund(refund, [], restockMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Restock approved",
+      undefined,
+      { quantity: 2 },
+    );
+
+    const result = await service.executeRestock(
+      { exceptionId: exception.id },
+      "operator_1",
+    );
+
+    expect(result.adjustmentId).toBe(
+      "adjustment_restock:RESTOCK_MISSING:org_1:rf_1",
+    );
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
+  });
+
+  it("replaying the same idempotency key does not issue a duplicate restock", async () => {
+    await service.ingestRefund(refund, [], restockMissingNow);
+    const [exception] = await service.listOpenExceptions("org_1");
+    await service.approve(
+      exception.id,
+      "operator_1",
+      "Restock approved",
+      undefined,
+      { quantity: 2 },
+    );
+
+    const request = { exceptionId: exception.id };
+    const first = await service.executeRestock(request, "operator_1");
+    const second = await service.executeRestock(request, "operator_1");
+
+    expect(second).toEqual(first);
+    expect(await service.getAuditLog("org_1")).toHaveLength(2);
   });
 });
 
 const shipment: Shipment = {
-  id: 'ship_1',
-  orgId: 'org_1',
-  orderId: 'order_1',
-  status: 'IN_TRANSIT',
-  lastStatusChangeAt: '2026-09-01T10:00:00.000Z',
+  id: "ship_1",
+  orgId: "org_1",
+  orderId: "order_1",
+  status: "IN_TRANSIT",
+  lastStatusChangeAt: "2026-09-01T10:00:00.000Z",
 };
 
-const deliveryStalledNow = new Date(new Date(shipment.lastStatusChangeAt).getTime() + DELIVERY_STALLED_THRESHOLD_MS + 1000);
+const deliveryStalledNow = new Date(
+  new Date(shipment.lastStatusChangeAt).getTime() +
+    DELIVERY_STALLED_THRESHOLD_MS +
+    1000,
+);
 
-describe('ExceptionService — DELIVERY_STALLED', () => {
+describe("ExceptionService — DELIVERY_STALLED", () => {
   let service: ExceptionService;
 
   beforeEach(() => {
-    service = new ExceptionService(new InMemoryExceptionStore(), new FakeRefundGateway());
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+    );
   });
 
-  it('creates an open exception when a shipment has not changed status past the threshold', async () => {
+  it("creates an open exception when a shipment has not changed status past the threshold", async () => {
     await service.ingestShipment(shipment, deliveryStalledNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
   });
 
-  it('does not create an exception when the shipment already reached a terminal status', async () => {
-    await service.ingestShipment({ ...shipment, status: 'DELIVERED' }, deliveryStalledNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(0);
+  it("does not create an exception when the shipment already reached a terminal status", async () => {
+    await service.ingestShipment(
+      { ...shipment, status: "DELIVERED" },
+      deliveryStalledNow,
+    );
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
   });
 
-  it('ingesting the same shipment status twice (duplicate webhook) does not duplicate the exception', async () => {
+  it("ingesting the same shipment status twice (duplicate webhook) does not duplicate the exception", async () => {
     await service.ingestShipment(shipment, deliveryStalledNow);
     await service.ingestShipment(shipment, deliveryStalledNow);
-    expect(await service.listOpenExceptions('org_1')).toHaveLength(1);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
+  });
+
+  it("resolves an open delivery-stalled exception once the shipment reaches a terminal status", async () => {
+    await service.ingestShipment(shipment, deliveryStalledNow);
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(1);
+
+    await service.ingestShipment(
+      {
+        ...shipment,
+        status: "DELIVERED",
+        lastStatusChangeAt: deliveryStalledNow.toISOString(),
+      },
+      deliveryStalledNow,
+    );
+
+    expect(await service.listOpenExceptions("org_1")).toHaveLength(0);
+    expect(
+      (await service.getException(`DELIVERY_STALLED:org_1:${shipment.id}`))
+        ?.status,
+    ).toBe("resolved");
   });
 });

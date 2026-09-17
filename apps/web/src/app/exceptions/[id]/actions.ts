@@ -20,24 +20,110 @@ export async function approveException(orgId: string, exceptionId: string, reaso
   return {};
 }
 
-export async function dismissException(orgId: string, exceptionId: string, reason: string) {
-  const res = await apiFetch(`/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/dismiss`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  });
+export async function approveRestockException(
+  orgId: string,
+  exceptionId: string,
+  reason: string,
+  quantityInput: string,
+) {
+  if (!/^\d+$/.test(quantityInput))
+    return { error: "Introduza uma quantidade válida." };
+  const quantity = Number(quantityInput);
+  if (!Number.isSafeInteger(quantity) || quantity <= 0)
+    return { error: "Introduza uma quantidade válida." };
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/approve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, quantity }),
+    },
+  );
+  if (!res.ok) return { error: `Não foi possível aprovar (${res.status}).` };
+  revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
+  return {};
+}
+
+export async function approveWithoutTerms(
+  orgId: string,
+  exceptionId: string,
+  reason: string,
+) {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/approve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!res.ok) return { error: `Não foi possível aprovar (${res.status}).` };
+  revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
+  return {};
+}
+
+export async function dismissException(
+  orgId: string,
+  exceptionId: string,
+  reason: string,
+) {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/dismiss`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
   if (!res.ok) return { error: `Não foi possível arquivar (${res.status}).` };
   revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
   return {};
 }
 
 export async function executeRefundAction(orgId: string, exceptionId: string) {
-  const res = await apiFetch(`/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/actions/refund`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) return { error: `Não foi possível executar o reembolso (${res.status}).` };
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/actions/refund`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok)
+    return { error: `Não foi possível executar o reembolso (${res.status}).` };
+  revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
+  return {};
+}
+
+export async function executeRestockAction(orgId: string, exceptionId: string) {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/actions/restock`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok)
+    return { error: `Não foi possível repor o stock (${res.status}).` };
+  revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
+  return {};
+}
+
+export async function executeIssueInvoiceAction(
+  orgId: string,
+  exceptionId: string,
+) {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/actions/invoice`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok)
+    return { error: `Não foi possível emitir a fatura (${res.status}).` };
   revalidatePath(`/exceptions/${encodeExceptionRouteId(exceptionId)}`);
   return {};
 }

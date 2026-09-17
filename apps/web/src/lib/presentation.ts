@@ -17,6 +17,14 @@ export function severityLabel(locale: Locale, severity: string) {
   return translateKnown(locale, `presentation.severity.${severity}`, severity);
 }
 
+export function actionKindLabel(locale: Locale, kind: string) {
+  return translateKnown(locale, `presentation.actionKind.${kind}`, kind);
+}
+
+export function memberRoleLabel(locale: Locale, role: string) {
+  return translateKnown(locale, `presentation.role.${role}`, role);
+}
+
 export function billingStatusLabel(locale: Locale, status: string) {
   return translateKnown(locale, `billing.status.${status}`, status);
 }

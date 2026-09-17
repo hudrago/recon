@@ -167,6 +167,42 @@ const messages = {
       "Este espaço contém histórico operacional sujeito a conservação e não pode ser eliminado automaticamente.",
     "settings.confirmDelete": "Eliminar definitivamente",
     "settings.error": "Não foi possível concluir a eliminação.",
+    "settings.members.eyebrow": "Equipa",
+    "settings.members.title": "Membros",
+    "settings.members.description":
+      "Convide colegas para este espaço de trabalho e faça a gestão das respetivas funções.",
+    "settings.members.invite": "Convidar",
+    "settings.members.inviteEmail": "Email",
+    "settings.members.inviteRole": "Função",
+    "settings.members.remove": "Remover",
+    "settings.members.cancelInvite": "Cancelar convite",
+    "settings.members.pending": "Convite pendente",
+    "settings.members.lastOwner":
+      "A organização tem de manter pelo menos um proprietário. Promova outra pessoa antes de remover ou alterar esta função.",
+    "settings.members.error": "Não foi possível concluir esta ação.",
+    "presentation.role.owner": "Proprietário",
+    "presentation.role.admin": "Administrador",
+    "presentation.role.member": "Membro",
+    "acceptInvitation.eyebrow": "Convite",
+    "acceptInvitation.title": "Convite para uma organização",
+    "acceptInvitation.description":
+      "Foi convidado para se juntar a uma organização na Recon.",
+    "acceptInvitation.signInPrompt":
+      "Inicie sessão ou crie uma conta com o email para o qual foi convidado e depois volte a abrir este link.",
+    "acceptInvitation.signIn": "Iniciar sessão",
+    "acceptInvitation.signUp": "Criar conta",
+    "acceptInvitation.accept": "Aceitar convite",
+    "acceptInvitation.decline": "Recusar",
+    "acceptInvitation.declined": "Convite recusado.",
+    "acceptInvitation.error": "Não foi possível processar este convite.",
+    "settings.carrier.eyebrow": "Transportadoras",
+    "settings.carrier.title": "Importar estados de envio",
+    "settings.carrier.description":
+      "Carregue um ficheiro CSV com os estados de envio mais recentes (order_id, tracking_number, status, last_status_change_at).",
+    "settings.carrier.upload": "Carregar CSV",
+    "settings.carrier.error": "Não foi possível processar o ficheiro.",
+    "settings.carrier.result":
+      "{accepted} envios processados, {exceptions} nova(s) exceção(ões) detetada(s).",
     "billing.eyebrow": "Faturação",
     "billing.title": "Plano e faturação",
     "billing.description":
@@ -235,17 +271,31 @@ const messages = {
       "Valide os dados e registe o motivo antes de aprovar ou arquivar.",
     "actions.amount": "Valor do reembolso",
     "actions.currency": "Moeda",
+    "actions.quantity": "Quantidade a repor",
     "actions.reason": "Motivo da decisão",
     "actions.reasonPlaceholder": "Ex.: devolução confirmada no armazém",
     "actions.approve": "Aprovar recomendação",
     "actions.confirmRefund": "Confirmar reembolso",
+    "actions.confirmRestock": "Confirmar reposição",
+    "actions.confirmIssueInvoice": "Confirmar emissão da fatura",
+    "actions.noActionAvailable": "Sem ação automática",
+    "actions.noActionAvailableDescription":
+      "Este tipo de exceção ainda não tem uma ação automática associada. Registe a resolução manualmente junto do fornecedor.",
     "actions.dismiss": "Arquivar",
     "actions.confirmApprovalTitle": "Confirmar aprovação",
     "actions.confirmRefundTitle": "Executar reembolso",
+    "actions.confirmRestockTitle": "Repor stock",
+    "actions.confirmIssueInvoiceTitle": "Emitir fatura",
     "actions.confirmApprovalDescription":
       "Vai aprovar um reembolso de {amount} {currency} para a encomenda {orderId}.",
+    "actions.confirmRestockApprovalDescription":
+      "Vai aprovar a reposição de {quantity} unidades para a encomenda {orderId}.",
     "actions.confirmRefundDescription":
       "A Recon vai pedir o reembolso da encomenda {orderId} ao fornecedor. Esta ação fica registada.",
+    "actions.confirmRestockDescription":
+      "A Recon vai repor o stock da encomenda {orderId} junto do fornecedor. Esta ação fica registada.",
+    "actions.confirmIssueInvoiceDescription":
+      "A Recon vai emitir a fatura da encomenda {orderId} junto do InvoiceXpress. Esta ação fica registada.",
     "actions.reasonSummary": "Motivo",
     "actions.previousReason": "Aprovação registada anteriormente",
     "actions.yesApprove": "Sim, aprovar",
@@ -269,6 +319,10 @@ const messages = {
     "presentation.severity.HIGH": "Alta",
     "presentation.severity.MEDIUM": "Média",
     "presentation.severity.LOW": "Baixa",
+    "presentation.actionKind.REFUND": "Reembolso",
+    "presentation.actionKind.RESTOCK": "Reposição de stock",
+    "case.timeline": "Histórico",
+    "case.timelineEmpty": "Ainda sem decisões registadas para este caso.",
   },
   en: {
     "preferences.language": "Language",
@@ -429,6 +483,42 @@ const messages = {
       "This workspace contains operational history subject to retention and cannot be deleted automatically.",
     "settings.confirmDelete": "Delete permanently",
     "settings.error": "Unable to complete deletion.",
+    "settings.members.eyebrow": "Team",
+    "settings.members.title": "Members",
+    "settings.members.description":
+      "Invite teammates to this workspace and manage their roles.",
+    "settings.members.invite": "Invite",
+    "settings.members.inviteEmail": "Email",
+    "settings.members.inviteRole": "Role",
+    "settings.members.remove": "Remove",
+    "settings.members.cancelInvite": "Cancel invitation",
+    "settings.members.pending": "Pending invitation",
+    "settings.members.lastOwner":
+      "The organization must retain at least one owner. Promote someone else before removing or changing this role.",
+    "settings.members.error": "Unable to complete this action.",
+    "presentation.role.owner": "Owner",
+    "presentation.role.admin": "Admin",
+    "presentation.role.member": "Member",
+    "acceptInvitation.eyebrow": "Invitation",
+    "acceptInvitation.title": "Organization invitation",
+    "acceptInvitation.description":
+      "You've been invited to join an organization on Recon.",
+    "acceptInvitation.signInPrompt":
+      "Sign in or create an account with the email you were invited with, then open this link again.",
+    "acceptInvitation.signIn": "Sign in",
+    "acceptInvitation.signUp": "Create account",
+    "acceptInvitation.accept": "Accept invitation",
+    "acceptInvitation.decline": "Decline",
+    "acceptInvitation.declined": "Invitation declined.",
+    "acceptInvitation.error": "Unable to process this invitation.",
+    "settings.carrier.eyebrow": "Carriers",
+    "settings.carrier.title": "Import shipment statuses",
+    "settings.carrier.description":
+      "Upload a CSV with the latest shipment statuses (order_id, tracking_number, status, last_status_change_at).",
+    "settings.carrier.upload": "Upload CSV",
+    "settings.carrier.error": "Unable to process this file.",
+    "settings.carrier.result":
+      "{accepted} shipment(s) processed, {exceptions} new exception(s) detected.",
     "billing.eyebrow": "Billing",
     "billing.title": "Plan and billing",
     "billing.description":
@@ -496,17 +586,31 @@ const messages = {
       "Validate the details and record a reason before approving or dismissing.",
     "actions.amount": "Refund amount",
     "actions.currency": "Currency",
+    "actions.quantity": "Quantity to restock",
     "actions.reason": "Decision reason",
     "actions.reasonPlaceholder": "E.g. return confirmed at the warehouse",
     "actions.approve": "Approve recommendation",
     "actions.confirmRefund": "Confirm refund",
+    "actions.confirmRestock": "Confirm restock",
+    "actions.confirmIssueInvoice": "Confirm invoice issuance",
+    "actions.noActionAvailable": "No automated action",
+    "actions.noActionAvailableDescription":
+      "This exception type doesn't have an automated action yet. Record the resolution manually with the provider.",
     "actions.dismiss": "Dismiss",
     "actions.confirmApprovalTitle": "Confirm approval",
     "actions.confirmRefundTitle": "Issue refund",
+    "actions.confirmRestockTitle": "Restock inventory",
+    "actions.confirmIssueInvoiceTitle": "Issue invoice",
     "actions.confirmApprovalDescription":
       "You are approving a refund of {amount} {currency} for order {orderId}.",
+    "actions.confirmRestockApprovalDescription":
+      "You are approving a restock of {quantity} units for order {orderId}.",
     "actions.confirmRefundDescription":
       "Recon will request the refund for order {orderId} from the provider. This action will be recorded.",
+    "actions.confirmRestockDescription":
+      "Recon will request the inventory restock for order {orderId} from the provider. This action will be recorded.",
+    "actions.confirmIssueInvoiceDescription":
+      "Recon will issue the invoice for order {orderId} with InvoiceXpress. This action will be recorded.",
     "actions.reasonSummary": "Reason",
     "actions.previousReason": "Approval recorded previously",
     "actions.yesApprove": "Yes, approve",
@@ -530,6 +634,10 @@ const messages = {
     "presentation.severity.HIGH": "High",
     "presentation.severity.MEDIUM": "Medium",
     "presentation.severity.LOW": "Low",
+    "presentation.actionKind.REFUND": "Refund",
+    "presentation.actionKind.RESTOCK": "Restock",
+    "case.timeline": "Timeline",
+    "case.timelineEmpty": "No decisions recorded for this case yet.",
   },
 } as const;
 

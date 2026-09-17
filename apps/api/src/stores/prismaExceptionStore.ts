@@ -4,14 +4,21 @@ import type {
   ExceptionCode,
   ExceptionStatus,
   Invoice,
+  InventoryAdjustment,
   Refund,
+  Shipment,
+  ShipmentStatus,
 } from "@recon/domain";
-import type {
-  ActionClaim,
-  AuditLogEntry,
-  ExceptionStore,
-  ExecutedActionResult,
-  PendingEvaluation,
+import { TERMINAL_SHIPMENT_STATUSES } from "@recon/domain";
+import {
+  actionResultFromSideEffect,
+  type ActionClaim,
+  type ActionKind,
+  type ActionSideEffect,
+  type AuditLogEntry,
+  type ExceptionStore,
+  type ExecutedActionResult,
+  type PendingEvaluation,
 } from "../exceptionStore";
 import { PrismaService } from "../prisma.service";
 
@@ -140,6 +147,7 @@ export class PrismaExceptionStore implements ExceptionStore {
       this.prisma.auditLogEntry.create({
         data: {
           orgId: entry.orgId,
+          exceptionId: entry.exceptionId,
           actor: entry.actor,
           reason: entry.reason,
           before: entry.before as object,
@@ -221,7 +229,7 @@ export class PrismaExceptionStore implements ExceptionStore {
             orderId: refund.orderId,
             actionKind: "REFUND",
             status: "SUCCEEDED",
-            result: { refundId: refund.id },
+            result: { kind: "REFUND", refundId: refund.id },
           },
         ],
         skipDuplicates: true,
@@ -306,14 +314,30 @@ export class PrismaExceptionStore implements ExceptionStore {
   }
 
   async saveInvoice(invoice: Invoice): Promise<void> {
-    await this.prisma.invoiceRecord.upsert({
-      where: { orgId_id: { orgId: invoice.orgId, id: invoice.id } },
-      create: { ...invoice, issuedAt: new Date(invoice.issuedAt) },
-      update: {
-        orderId: invoice.orderId,
-        issuedAt: new Date(invoice.issuedAt),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.invoiceRecord.upsert({
+        where: { orgId_id: { orgId: invoice.orgId, id: invoice.id } },
+        create: { ...invoice, issuedAt: new Date(invoice.issuedAt) },
+        update: {
+          orderId: invoice.orderId,
+          issuedAt: new Date(invoice.issuedAt),
+        },
+      }),
+      this.prisma.executedAction.createMany({
+        data: [
+          {
+            idempotencyKey: `observed-invoice:${invoice.id}`,
+            exceptionId: `observed-invoice:${invoice.orgId}:${invoice.orderId}`,
+            orgId: invoice.orgId,
+            orderId: invoice.orderId,
+            actionKind: "INVOICE",
+            status: "SUCCEEDED",
+            result: { kind: "INVOICE", invoiceId: invoice.id },
+          },
+        ],
+        skipDuplicates: true,
+      }),
+    ]);
   }
 
   async listInvoices(orgId: string, orderId: string): Promise<Invoice[]> {
@@ -326,11 +350,80 @@ export class PrismaExceptionStore implements ExceptionStore {
     }));
   }
 
+  async saveAdjustment(adjustment: InventoryAdjustment): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.inventoryAdjustmentRecord.upsert({
+        where: { orgId_id: { orgId: adjustment.orgId, id: adjustment.id } },
+        create: { ...adjustment, adjustedAt: new Date(adjustment.adjustedAt) },
+        update: {
+          orderId: adjustment.orderId,
+          refundId: adjustment.refundId,
+          quantity: adjustment.quantity,
+          adjustedAt: new Date(adjustment.adjustedAt),
+        },
+      }),
+      this.prisma.executedAction.createMany({
+        data: [
+          {
+            idempotencyKey: `observed-restock:${adjustment.id}`,
+            exceptionId: `observed-restock:${adjustment.orgId}:${adjustment.orderId}`,
+            orgId: adjustment.orgId,
+            orderId: adjustment.orderId,
+            actionKind: "RESTOCK",
+            status: "SUCCEEDED",
+            result: { kind: "RESTOCK", adjustmentId: adjustment.id },
+          },
+        ],
+        skipDuplicates: true,
+      }),
+    ]);
+  }
+
+  async listAdjustments(
+    orgId: string,
+    orderId: string,
+  ): Promise<InventoryAdjustment[]> {
+    const records = await this.prisma.inventoryAdjustmentRecord.findMany({
+      where: { orgId, orderId },
+    });
+    return records.map((record) => ({
+      ...record,
+      adjustedAt: record.adjustedAt.toISOString(),
+    }));
+  }
+
+  async saveShipment(shipment: Shipment): Promise<void> {
+    await this.prisma.shipmentRecord.upsert({
+      where: { orgId_id: { orgId: shipment.orgId, id: shipment.id } },
+      create: {
+        ...shipment,
+        lastStatusChangeAt: new Date(shipment.lastStatusChangeAt),
+      },
+      update: {
+        orderId: shipment.orderId,
+        status: shipment.status,
+        lastStatusChangeAt: new Date(shipment.lastStatusChangeAt),
+      },
+    });
+  }
+
+  async listActiveShipments(): Promise<Shipment[]> {
+    const records = await this.prisma.shipmentRecord.findMany({
+      where: { status: { notIn: [...TERMINAL_SHIPMENT_STATUSES] } },
+    });
+    return records.map((record) => ({
+      ...record,
+      status: record.status as ShipmentStatus,
+      lastStatusChangeAt: record.lastStatusChangeAt.toISOString(),
+    }));
+  }
+
   async claimAction(
     idempotencyKey: string,
     exceptionId: string,
     orgId: string,
     orderId: string,
+    actionKind: ActionKind,
   ): Promise<ActionClaim> {
     try {
       await this.prisma.executedAction.create({
@@ -339,7 +432,7 @@ export class PrismaExceptionStore implements ExceptionStore {
           exceptionId,
           orgId,
           orderId,
-          actionKind: "REFUND",
+          actionKind,
           status: "PENDING",
         },
       });
@@ -384,7 +477,7 @@ export class PrismaExceptionStore implements ExceptionStore {
       };
     }
     const reserved = await this.prisma.executedAction.findFirst({
-      where: { orgId, orderId, actionKind: "REFUND" },
+      where: { orgId, orderId, actionKind },
     });
     if (reserved?.status === "SUCCEEDED" && reserved.result) {
       return {
@@ -397,11 +490,66 @@ export class PrismaExceptionStore implements ExceptionStore {
 
   async completeAction(
     idempotencyKey: string,
-    result: ExecutedActionResult,
-    refund: Refund,
     exception: DomainException,
+    sideEffect: ActionSideEffect,
     entry: AuditLogEntry,
   ): Promise<void> {
+    const result = actionResultFromSideEffect(sideEffect);
+    const sideEffectWrite =
+      sideEffect.kind === "REFUND"
+        ? this.prisma.refundRecord.upsert({
+            where: {
+              orgId_id: {
+                orgId: sideEffect.refund.orgId,
+                id: sideEffect.refund.id,
+              },
+            },
+            create: {
+              ...sideEffect.refund,
+              issuedAt: new Date(sideEffect.refund.issuedAt),
+            },
+            update: {
+              orderId: sideEffect.refund.orderId,
+              amount: sideEffect.refund.amount,
+              currency: sideEffect.refund.currency,
+              issuedAt: new Date(sideEffect.refund.issuedAt),
+            },
+          })
+        : sideEffect.kind === "RESTOCK"
+          ? this.prisma.inventoryAdjustmentRecord.upsert({
+              where: {
+                orgId_id: {
+                  orgId: sideEffect.adjustment.orgId,
+                  id: sideEffect.adjustment.id,
+                },
+              },
+              create: {
+                ...sideEffect.adjustment,
+                adjustedAt: new Date(sideEffect.adjustment.adjustedAt),
+              },
+              update: {
+                orderId: sideEffect.adjustment.orderId,
+                refundId: sideEffect.adjustment.refundId,
+                quantity: sideEffect.adjustment.quantity,
+                adjustedAt: new Date(sideEffect.adjustment.adjustedAt),
+              },
+            })
+          : this.prisma.invoiceRecord.upsert({
+              where: {
+                orgId_id: {
+                  orgId: sideEffect.invoice.orgId,
+                  id: sideEffect.invoice.id,
+                },
+              },
+              create: {
+                ...sideEffect.invoice,
+                issuedAt: new Date(sideEffect.invoice.issuedAt),
+              },
+              update: {
+                orderId: sideEffect.invoice.orderId,
+                issuedAt: new Date(sideEffect.invoice.issuedAt),
+              },
+            });
     await this.prisma.$transaction([
       this.prisma.executedAction.update({
         where: { idempotencyKey },
@@ -414,19 +562,11 @@ export class PrismaExceptionStore implements ExceptionStore {
           context: exception.context as object,
         },
       }),
-      this.prisma.refundRecord.upsert({
-        where: { orgId_id: { orgId: refund.orgId, id: refund.id } },
-        create: { ...refund, issuedAt: new Date(refund.issuedAt) },
-        update: {
-          orderId: refund.orderId,
-          amount: refund.amount,
-          currency: refund.currency,
-          issuedAt: new Date(refund.issuedAt),
-        },
-      }),
+      sideEffectWrite,
       this.prisma.auditLogEntry.create({
         data: {
           orgId: entry.orgId,
+          exceptionId: entry.exceptionId,
           actor: entry.actor,
           reason: entry.reason,
           before: entry.before as object,
@@ -448,6 +588,7 @@ export class PrismaExceptionStore implements ExceptionStore {
     await this.prisma.auditLogEntry.create({
       data: {
         orgId: entry.orgId,
+        exceptionId: entry.exceptionId,
         actor: entry.actor,
         reason: entry.reason,
         before: entry.before as object,
@@ -464,6 +605,26 @@ export class PrismaExceptionStore implements ExceptionStore {
     });
     return records.map((record) => ({
       orgId: record.orgId,
+      exceptionId: record.exceptionId ?? undefined,
+      actor: record.actor,
+      reason: record.reason,
+      before: record.before,
+      after: record.after,
+      at: record.at.toISOString(),
+    }));
+  }
+
+  async getAuditLogForException(
+    orgId: string,
+    exceptionId: string,
+  ): Promise<AuditLogEntry[]> {
+    const records = await this.prisma.auditLogEntry.findMany({
+      where: { orgId, exceptionId },
+      orderBy: { at: "asc" },
+    });
+    return records.map((record) => ({
+      orgId: record.orgId,
+      exceptionId: record.exceptionId ?? undefined,
       actor: record.actor,
       reason: record.reason,
       before: record.before,

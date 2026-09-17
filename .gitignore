@@ -7,3 +7,5 @@ coverage
 !**/.env.example
 .next
 *.tsbuildinfo
+test-results
+playwright-report

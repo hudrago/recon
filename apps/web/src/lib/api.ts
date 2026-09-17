@@ -72,9 +72,35 @@ export async function getBillingPlans(orgId: string): Promise<ApiPlanCatalog> {
   return res.json();
 }
 
-export async function getException(orgId: string, exceptionId: string): Promise<ApiException | null> {
-  const res = await apiFetch(`/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}`);
+export interface ApiAuditLogItem {
+  actor: string;
+  reason: string;
+  at: string;
+  statusBefore?: string;
+  statusAfter?: string;
+  actionKind?: string;
+  result?: unknown;
+}
+
+export async function getException(
+  orgId: string,
+  exceptionId: string,
+): Promise<ApiException | null> {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}`,
+  );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to load exception (${res.status})`);
+  return res.json();
+}
+
+export async function getExceptionAudit(
+  orgId: string,
+  exceptionId: string,
+): Promise<ApiAuditLogItem[]> {
+  const res = await apiFetch(
+    `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/audit`,
+  );
+  if (!res.ok) throw new Error(`Failed to load audit log (${res.status})`);
   return res.json();
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  actionKindLabel,
   billingStatusLabel,
   exceptionDescription,
   exceptionLabel,
@@ -27,6 +28,12 @@ describe("localized exception presentation", () => {
   it("provides billing status labels in both locales", () => {
     expect(billingStatusLabel("pt", "read_only")).toBe("Acesso limitado");
     expect(billingStatusLabel("en", "trialing")).toBe("Trialing");
+  });
+
+  it("provides action kind labels for the case timeline in both locales", () => {
+    expect(actionKindLabel("pt", "REFUND")).toBe("Reembolso");
+    expect(actionKindLabel("en", "RESTOCK")).toBe("Restock");
+    expect(actionKindLabel("en", "UNKNOWN_KIND")).toBe("UNKNOWN_KIND");
   });
 
   it("falls back to canonical values and formats API context keys", () => {

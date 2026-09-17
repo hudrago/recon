@@ -17,7 +17,9 @@ test('account onboarding reaches the inbox and cleans up the workspace and accou
   await page.getByLabel('Nome da organização').fill(organizationName);
   await page.getByRole('button', { name: 'Criar organização' }).click();
   await expect(page).toHaveURL(/\/exceptions$/, { timeout: 15_000 });
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Caixa de entrada');
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "A resolver",
+  );
 
   await page.goto('/settings');
   await page.getByRole('button', { name: 'Eliminar espaço' }).click();

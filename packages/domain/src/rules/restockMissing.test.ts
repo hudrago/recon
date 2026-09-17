@@ -23,7 +23,14 @@ describe('evaluateRestockMissing', () => {
   it('does not fire when a matching inventory adjustment exists', () => {
     const now = new Date(new Date(refund.issuedAt).getTime() + RESTOCK_MISSING_THRESHOLD_MS + 1000);
     const adjustments: InventoryAdjustment[] = [
-      { id: 'adj_1', orgId: 'org_1', orderId: 'order_1', refundId: 'rf_1', adjustedAt: now.toISOString() },
+      {
+        id: "adj_1",
+        orgId: "org_1",
+        orderId: "order_1",
+        refundId: "rf_1",
+        quantity: 1,
+        adjustedAt: now.toISOString(),
+      },
     ];
     expect(evaluateRestockMissing({ refund, adjustments, now })).toBeNull();
   });

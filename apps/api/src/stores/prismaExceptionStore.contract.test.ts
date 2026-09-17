@@ -23,6 +23,15 @@ describe.skipIf(!process.env.DATABASE_URL)('PrismaExceptionStore (live database)
       await prisma.exceptionRecord.deleteMany({ where: { id: { startsWith: 'contract_' } } });
       await prisma.pendingEvaluation.deleteMany({ where: { id: { startsWith: 'contract_' } } });
       await prisma.refundRecord.deleteMany({ where: { id: { startsWith: 'contract_' } } });
+      await prisma.invoiceRecord.deleteMany({
+        where: { id: { startsWith: "contract_" } },
+      });
+      await prisma.inventoryAdjustmentRecord.deleteMany({
+        where: { id: { startsWith: "contract_" } },
+      });
+      await prisma.shipmentRecord.deleteMany({
+        where: { id: { startsWith: "contract_" } },
+      });
       await prisma.executedAction.deleteMany({ where: { OR: [{ idempotencyKey: { startsWith: 'contract_' } }, { orgId: { startsWith: 'contract_' } }] } });
       await prisma.auditLogEntry.deleteMany({ where: { orgId: { startsWith: 'contract_' } } });
       await prisma.organization.deleteMany({ where: { id: { startsWith: 'contract_' } } });

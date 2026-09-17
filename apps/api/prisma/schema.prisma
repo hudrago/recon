@@ -84,6 +84,8 @@ model Organization {
   pendingEvaluations PendingEvaluation[]
   refunds            RefundRecord[]
   invoiceRecords     InvoiceRecord[]
+  inventoryAdjustments InventoryAdjustmentRecord[]
+  shipments          ShipmentRecord[]
   webhookReceipts    WebhookReceipt[]
   executedActions    ExecutedAction[]
   auditLogEntries    AuditLogEntry[]
@@ -182,6 +184,33 @@ model InvoiceRecord {
   @@map("invoice_records")
 }
 
+model InventoryAdjustmentRecord {
+  id         String
+  orgId      String
+  orderId    String
+  refundId   String
+  quantity   Int
+  adjustedAt DateTime
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@id([orgId, id])
+  @@index([orgId, orderId])
+  @@map("inventory_adjustment_records")
+}
+
+model ShipmentRecord {
+  id                 String
+  orgId              String
+  orderId            String
+  status             String
+  lastStatusChangeAt DateTime
+  organization       Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@id([orgId, id])
+  @@index([orgId, orderId])
+  @@map("shipment_records")
+}
+
 model WebhookReceipt {
   provider   String
   eventId    String
@@ -216,16 +245,18 @@ model ExecutedAction {
 }
 
 model AuditLogEntry {
-  id     String   @id @default(cuid())
-  orgId  String
-  actor  String
-  reason String
-  before Json
-  after  Json
-  at     DateTime @default(now())
+  id           String   @id @default(cuid())
+  orgId        String
+  exceptionId  String?
+  actor        String
+  reason       String
+  before       Json
+  after        Json
+  at           DateTime @default(now())
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
 
   @@index([orgId])
+  @@index([orgId, exceptionId])
   @@map("audit_log_entries")
 }
 

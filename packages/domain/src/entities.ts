@@ -35,6 +35,7 @@ export interface InventoryAdjustment {
   orgId: string;
   orderId: string;
   refundId: string;
+  quantity: number;
   adjustedAt: string;
 }
 

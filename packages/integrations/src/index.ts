@@ -2,6 +2,7 @@
 export * from './shopify/mapReturn';
 export * from './shopify/mapOrderPaid';
 export * from './shopify/mapRefundCreated';
+export * from "./shopify/mapInventoryAdjustment";
 export * from './shopify/verifyWebhookSignature';
 export * from './carrier/parseCarrierCsv';
 // Stripe adapter — billing/subscription events, not part of the reconciliation domain model.

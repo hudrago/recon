@@ -11,35 +11,51 @@ if (!e2eSchema?.startsWith('recon_e2e')) throw new Error('E2E_DATABASE_URL must 
 process.env.E2E_DATABASE_URL = e2eDatabaseUrl;
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: "./tests/e2e",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  reporter: 'list',
-  globalSetup: './tests/e2e/global-setup.ts',
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  globalSetup: "./tests/e2e/global-setup.ts",
   use: {
-    baseURL: 'http://127.0.0.1:3100',
-    trace: 'retain-on-failure',
+    baseURL: "http://127.0.0.1:3100",
+    trace: "retain-on-failure",
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'], channel: process.env.CI ? undefined : 'msedge' },
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.CI ? undefined : "msedge",
+      },
     },
   ],
   webServer: [
     {
-      command: 'node --import tsx src/main.ts',
-      cwd: 'apps/api',
-      env: { DATABASE_URL: e2eDatabaseUrl, PORT: '3101', WEB_URL: 'http://127.0.0.1:3100' },
-      url: 'http://127.0.0.1:3101/health',
+      command: "node --import tsx src/main.ts",
+      cwd: "apps/api",
+      env: {
+        DATABASE_URL: e2eDatabaseUrl,
+        PORT: "3101",
+        WEB_URL: "http://127.0.0.1:3100",
+        // A developer's real .env Shopify credentials must never reach this process — apps/api's
+        // own `import 'dotenv/config'` runs again inside this spawned child and would otherwise
+        // repopulate these from apps/api/.env (dotenv only fills unset vars, so setting them to
+        // '' here, before that import runs, is what keeps useShopify false and the Fake* gateway
+        // deterministic). Not part of the dev environment schema, so '' passes validation.
+        SHOPIFY_ORG_ID: "",
+        SHOPIFY_SHOP_DOMAIN: "",
+        SHOPIFY_CLIENT_ID: "",
+        SHOPIFY_CLIENT_SECRET: "",
+      },
+      url: "http://127.0.0.1:3101/health",
       reuseExistingServer: false,
     },
     {
-      command: 'node node_modules/next/dist/bin/next dev --port 3100',
-      cwd: 'apps/web',
-      env: { API_URL: 'http://127.0.0.1:3101' },
-      url: 'http://127.0.0.1:3100',
+      command: "node node_modules/next/dist/bin/next dev --port 3100",
+      cwd: "apps/web",
+      env: { API_URL: "http://127.0.0.1:3101" },
+      url: "http://127.0.0.1:3100",
       reuseExistingServer: false,
     },
   ],

@@ -3,6 +3,7 @@ import {
   mapInvoiceXpressInvoiceToDomain,
   mapShopifyOrderPaidToDomain,
   mapShopifyRefundCreatedToDomain,
+  mapShopifyRefundCreatedToInventoryAdjustment,
   mapShopifyReturnToDomain,
   parseCarrierStatusCsv,
   verifyInvoiceXpressWebhookToken,
@@ -126,9 +127,15 @@ export class IngestController {
         const refund = mapShopifyRefundCreatedToDomain(payload, orgId);
         if (!refund)
           throw new BadRequestException("Invalid Shopify refund payload");
+        // Shopify reports a restock as part of this same refund payload (per line item
+        // restock_type), not a separate inventory webhook — see mapInventoryAdjustment.ts.
+        const adjustment = mapShopifyRefundCreatedToInventoryAdjustment(
+          payload,
+          orgId,
+        );
         const exception = await this.exceptions.ingestRefund(
           refund,
-          [],
+          adjustment ? [adjustment] : [],
           new Date(),
         );
         return Boolean(exception);

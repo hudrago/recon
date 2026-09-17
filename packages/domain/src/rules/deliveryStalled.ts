@@ -3,7 +3,9 @@ import type { DomainException } from '../exceptions';
 
 export const DELIVERY_STALLED_THRESHOLD_MS = 72 * 60 * 60 * 1000;
 
-const TERMINAL_SHIPMENT_STATUSES = new Set<Shipment['status']>(['DELIVERED', 'RETURNED', 'CANCELLED']);
+// Exported so apps/api can resolve an open exception once a shipment reaches one of these
+// statuses, without duplicating the terminal-status list.
+export const TERMINAL_SHIPMENT_STATUSES = new Set<Shipment['status']>(['DELIVERED', 'RETURNED', 'CANCELLED']);
 
 export interface DeliveryStalledInput {
   shipment: Shipment;

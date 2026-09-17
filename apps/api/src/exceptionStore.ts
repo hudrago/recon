@@ -6,8 +6,31 @@ export type PendingEvaluation =
   | { id: string; dueAt: string; kind: 'restock-missing'; refund: Refund; adjustments: InventoryAdjustment[] }
   | { id: string; dueAt: string; kind: 'delivery-stalled'; shipment: Shipment };
 
-export interface ExecutedActionResult {
-  refundId: string;
+// Every executable remediation kind. Each has its own idempotency-scoped action row so a refund
+// and a restock on the same order never collide, even though they share the (orgId, orderId) key.
+export type ActionKind = 'REFUND' | 'RESTOCK' | 'INVOICE';
+
+export type ExecutedActionResult =
+  | { kind: 'REFUND'; refundId: string }
+  | { kind: 'RESTOCK'; adjustmentId: string }
+  | { kind: 'INVOICE'; invoiceId: string };
+
+// The domain record an action's completion persists, tagged so the store can route it to the
+// right table without the service layer knowing storage details.
+export type ActionSideEffect =
+  | { kind: 'REFUND'; refund: Refund }
+  | { kind: 'RESTOCK'; adjustment: InventoryAdjustment }
+  | { kind: 'INVOICE'; invoice: Invoice };
+
+export function actionResultFromSideEffect(sideEffect: ActionSideEffect): ExecutedActionResult {
+  switch (sideEffect.kind) {
+    case 'REFUND':
+      return { kind: 'REFUND', refundId: sideEffect.refund.id };
+    case 'RESTOCK':
+      return { kind: 'RESTOCK', adjustmentId: sideEffect.adjustment.id };
+    case 'INVOICE':
+      return { kind: 'INVOICE', invoiceId: sideEffect.invoice.id };
+  }
 }
 
 export type ActionClaim =
@@ -17,6 +40,7 @@ export type ActionClaim =
 
 export interface AuditLogEntry {
   orgId: string;
+  exceptionId?: string;
   actor: string;
   reason: string;
   before: unknown;
@@ -59,20 +83,26 @@ export interface ExceptionStore {
     orgId: string,
     orderId: string,
   ): Promise<DomainException | undefined>;
+  saveAdjustment(adjustment: InventoryAdjustment): Promise<void>;
+  listAdjustments(orgId: string, orderId: string): Promise<InventoryAdjustment[]>;
+  saveShipment(shipment: Shipment): Promise<void>;
+  listActiveShipments(): Promise<Shipment[]>;
   claimAction(
     idempotencyKey: string,
     exceptionId: string,
     orgId: string,
     orderId: string,
+    actionKind: ActionKind,
   ): Promise<ActionClaim>;
   completeAction(
     idempotencyKey: string,
-    result: ExecutedActionResult,
-    refund: Refund,
     exception: DomainException,
+    sideEffect: ActionSideEffect,
     entry: AuditLogEntry,
   ): Promise<void>;
   failAction(idempotencyKey: string, error: string): Promise<void>;
   appendAuditLog(entry: AuditLogEntry): Promise<void>;
   getAuditLog(orgId: string): Promise<AuditLogEntry[]>;
+  getAuditLogForException(orgId: string, exceptionId: string): Promise<AuditLogEntry[]>;
 }
+

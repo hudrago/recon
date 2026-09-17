@@ -6,19 +6,19 @@ import { OrganizationDeletionService } from './organizationDeletion.service';
 function createTransaction(overrides: Record<string, unknown> = {}) {
   return {
     organization: {
-      findUnique: vi
-        .fn()
-        .mockResolvedValue({
-          id: "org_1",
-          slug: "recon-test",
-          members: [{ userId: "user_1", role: "owner" }],
-        }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: "org_1",
+        slug: "recon-test",
+        members: [{ userId: "user_1", role: "owner" }],
+      }),
       delete: vi.fn(),
     },
     exceptionRecord: { count: vi.fn().mockResolvedValue(0) },
     pendingEvaluation: { count: vi.fn().mockResolvedValue(0) },
     refundRecord: { count: vi.fn().mockResolvedValue(0) },
     invoiceRecord: { count: vi.fn().mockResolvedValue(0) },
+    inventoryAdjustmentRecord: { count: vi.fn().mockResolvedValue(0) },
+    shipmentRecord: { count: vi.fn().mockResolvedValue(0) },
     webhookReceipt: { count: vi.fn().mockResolvedValue(0) },
     executedAction: { count: vi.fn().mockResolvedValue(0) },
     auditLogEntry: { count: vi.fn().mockResolvedValue(0) },
@@ -33,13 +33,11 @@ describe("OrganizationDeletionService", () => {
   it("deletes an empty organization owned by its sole member", async () => {
     const transaction = createTransaction({
       organization: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({
-            id: "org_1",
-            slug: "recon-test",
-            members: [{ userId: "user_1", role: "admin,owner" }],
-          }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "org_1",
+          slug: "recon-test",
+          members: [{ userId: "user_1", role: "admin,owner" }],
+        }),
         delete: vi.fn(),
       },
     });
@@ -63,13 +61,11 @@ describe("OrganizationDeletionService", () => {
   it("rejects non-owners and organizations with other members", async () => {
     const nonOwner = createTransaction({
       organization: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({
-            id: "org_1",
-            slug: "recon-test",
-            members: [{ userId: "user_1", role: "member" }],
-          }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "org_1",
+          slug: "recon-test",
+          members: [{ userId: "user_1", role: "member" }],
+        }),
         delete: vi.fn(),
       },
     });
@@ -163,6 +159,40 @@ describe("OrganizationDeletionService", () => {
   it("retains organizations with fiscal invoice history", async () => {
     const transaction = createTransaction({
       invoiceRecord: { count: vi.fn().mockResolvedValue(1) },
+    });
+    const prisma = {
+      $transaction: vi.fn((callback) => callback(transaction)),
+    } as unknown as PrismaService;
+    await expect(
+      new OrganizationDeletionService(prisma).deleteEmptyOrganization(
+        "org_1",
+        "user_1",
+        "recon-test",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(transaction.organization.delete).not.toHaveBeenCalled();
+  });
+
+  it("retains organizations with inventory adjustment history", async () => {
+    const transaction = createTransaction({
+      inventoryAdjustmentRecord: { count: vi.fn().mockResolvedValue(1) },
+    });
+    const prisma = {
+      $transaction: vi.fn((callback) => callback(transaction)),
+    } as unknown as PrismaService;
+    await expect(
+      new OrganizationDeletionService(prisma).deleteEmptyOrganization(
+        "org_1",
+        "user_1",
+        "recon-test",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(transaction.organization.delete).not.toHaveBeenCalled();
+  });
+
+  it("retains organizations with shipment tracking history", async () => {
+    const transaction = createTransaction({
+      shipmentRecord: { count: vi.fn().mockResolvedValue(1) },
     });
     const prisma = {
       $transaction: vi.fn((callback) => callback(transaction)),
