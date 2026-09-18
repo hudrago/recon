@@ -75,6 +75,7 @@ export async function getBillingPlans(orgId: string): Promise<ApiPlanCatalog> {
 export interface ApiAuditLogItem {
   actor: string;
   reason: string;
+  reasonSource?: string;
   at: string;
   statusBefore?: string;
   statusAfter?: string;
@@ -103,4 +104,35 @@ export async function getExceptionAudit(
   );
   if (!res.ok) throw new Error(`Failed to load audit log (${res.status})`);
   return res.json();
+}
+
+// AI-generated, advisory only. Returns null on any failure (disabled/misconfigured/network) so
+// the case page degrades gracefully instead of breaking — see CaseBrief.tsx.
+export interface ApiCaseBrief {
+  orgId: string;
+  exceptionId: string;
+  locale: string;
+  summary: string;
+  recommendation: string;
+  rationale: string;
+  modelId: string;
+  promptVersion: string;
+  inputHash: string;
+  generatedAt: string;
+}
+
+export async function getCaseBrief(
+  orgId: string,
+  exceptionId: string,
+  locale: string,
+): Promise<ApiCaseBrief | null> {
+  try {
+    const res = await apiFetch(
+      `/orgs/${orgId}/exceptions/${encodeURIComponent(exceptionId)}/brief?locale=${encodeURIComponent(locale)}`,
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }

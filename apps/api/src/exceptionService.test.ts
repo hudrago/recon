@@ -10,6 +10,7 @@ import { ExceptionService } from './exceptionService';
 import { FakeRefundGateway } from './gateways/fakeRefundGateway';
 import { FakeRestockGateway } from "./gateways/fakeRestockGateway";
 import { FakeInvoiceGateway } from "./gateways/fakeInvoiceGateway";
+import { FakeAiGateway } from "./gateways/fakeAiGateway";
 import { InMemoryExceptionStore } from "./stores/inMemoryExceptionStore";
 
 const returnRecord: ReturnRecord = {
@@ -34,6 +35,7 @@ describe("ExceptionService", () => {
       new FakeRefundGateway(),
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
   });
 
@@ -238,6 +240,7 @@ describe("ExceptionService", () => {
       { createRefund },
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
     await service.ingestReturn(returnRecord, [], now);
     const [exception] = await service.listOpenExceptions("org_1");
@@ -271,6 +274,7 @@ describe("ExceptionService", () => {
       { createRefund },
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
     await service.ingestReturn(returnRecord, [], now);
     const [exception] = await service.listOpenExceptions("org_1");
@@ -305,6 +309,7 @@ describe("ExceptionService", () => {
       { createRefund },
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
     await service.ingestReturn(returnRecord, [], now);
     const [exception] = await service.listOpenExceptions("org_1");
@@ -374,6 +379,7 @@ describe("ExceptionService — INVOICE_MISSING", () => {
       new FakeRefundGateway(),
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
   });
 
@@ -532,6 +538,7 @@ describe("ExceptionService — RESTOCK_MISSING", () => {
       new FakeRefundGateway(),
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
   });
 
@@ -644,6 +651,7 @@ describe("ExceptionService — DELIVERY_STALLED", () => {
       new FakeRefundGateway(),
       new FakeRestockGateway(),
       new FakeInvoiceGateway(),
+      new FakeAiGateway(),
     );
   });
 
@@ -686,3 +694,67 @@ describe("ExceptionService — DELIVERY_STALLED", () => {
     ).toBe("resolved");
   });
 });
+
+describe("ExceptionService — AI case briefs (money-safety boundary)", () => {
+  let service: ExceptionService;
+
+  beforeEach(() => {
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+      new FakeAiGateway(),
+    );
+  });
+
+  it("never mutates the exception status or creates an executed action", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = await service.listOpenExceptions("org_1");
+
+    await service.getCaseBrief("org_1", exception.id, "pt");
+    await service.draftReason("org_1", exception.id, "approve", "pt");
+
+    expect((await service.getException(exception.id))?.status).toBe("open");
+    expect(await service.getAuditLog("org_1")).toHaveLength(0);
+  });
+
+  it("caches the brief and does not call the AI gateway again for an unchanged case", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = await service.listOpenExceptions("org_1");
+    const summarizeCase = vi.fn().mockResolvedValue({
+      summary: "s",
+      recommendation: "r",
+      rationale: "ra",
+      requiresApproval: true,
+      modelId: "test-model",
+    });
+    service = new ExceptionService(
+      new InMemoryExceptionStore(),
+      new FakeRefundGateway(),
+      new FakeRestockGateway(),
+      new FakeInvoiceGateway(),
+      { summarizeCase, draftReason: vi.fn() },
+    );
+    await service.ingestReturn(returnRecord, [], now);
+
+    const first = await service.getCaseBrief("org_1", exception.id, "pt");
+    const second = await service.getCaseBrief("org_1", exception.id, "pt");
+
+    expect(second).toEqual(first);
+    expect(summarizeCase).toHaveBeenCalledOnce();
+  });
+
+  it("returns a distinct persisted brief per locale", async () => {
+    await service.ingestReturn(returnRecord, [], now);
+    const [exception] = await service.listOpenExceptions("org_1");
+
+    const pt = await service.getCaseBrief("org_1", exception.id, "pt");
+    const en = await service.getCaseBrief("org_1", exception.id, "en");
+
+    expect(pt.locale).toBe("pt");
+    expect(en.locale).toBe("en");
+    expect(pt.inputHash).not.toBe(en.inputHash);
+  });
+});
+

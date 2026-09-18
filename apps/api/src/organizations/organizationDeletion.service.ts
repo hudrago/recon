@@ -44,6 +44,7 @@ export class OrganizationDeletionService {
           webhooks,
           actions,
           audits,
+          caseBriefs,
           processedOrders,
           billingInvoices,
         ] = await Promise.all([
@@ -56,6 +57,7 @@ export class OrganizationDeletionService {
           transaction.webhookReceipt.count({ where: { orgId } }),
           transaction.executedAction.count({ where: { orgId } }),
           transaction.auditLogEntry.count({ where: { orgId } }),
+          transaction.caseBrief.count({ where: { orgId } }),
           transaction.processedOrder.count({ where: { orgId } }),
           transaction.billingInvoice.count({ where: { orgId } }),
         ]);
@@ -69,6 +71,7 @@ export class OrganizationDeletionService {
             webhooks +
             actions +
             audits +
+            caseBriefs +
             processedOrders +
             billingInvoices >
           0

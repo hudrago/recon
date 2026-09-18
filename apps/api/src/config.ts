@@ -37,6 +37,10 @@ const productionEnvironmentSchema = z
     STRIPE_PRICE_PRO: z.string().min(1).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(1).optional(),
+    AI_ENABLED: z.coerce.boolean().default(false),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_MODEL: z.string().min(1).optional(),
+    OPENAI_BASE_URL: z.string().url().default("https://eu.api.openai.com/v1"),
   })
   .refine(
     (value) =>
@@ -56,6 +60,23 @@ const productionEnvironmentSchema = z
   .refine(
     (value) => Boolean(value.RESEND_API_KEY) === Boolean(value.EMAIL_FROM),
     { message: "RESEND_API_KEY and EMAIL_FROM must be provided together" },
+  )
+  .refine(
+    (value) =>
+      !value.AI_ENABLED || Boolean(value.OPENAI_API_KEY && value.OPENAI_MODEL),
+    {
+      message:
+        "OPENAI_API_KEY and OPENAI_MODEL are required when AI_ENABLED is true",
+    },
+  )
+  .refine(
+    // GDPR/EU-residency guardrail: production must never be able to silently call OpenAI's
+    // global endpoint, even via a fat-fingered env override. See docs/architecture ADR 0002.
+    (value) => value.OPENAI_BASE_URL.startsWith("https://eu.api.openai.com"),
+    {
+      message:
+        "OPENAI_BASE_URL must be the EU regional endpoint (https://eu.api.openai.com) in production",
+    },
   );
 
 const developmentEnvironmentSchema = z.object({
@@ -71,6 +92,10 @@ const developmentEnvironmentSchema = z.object({
   STRIPE_PRICE_PRO: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).optional(),
+  AI_ENABLED: z.coerce.boolean().default(false),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_MODEL: z.string().min(1).optional(),
+  OPENAI_BASE_URL: z.string().url().default("https://eu.api.openai.com/v1"),
 });
 
 export function validateEnvironment(environment: NodeJS.ProcessEnv = process.env) {

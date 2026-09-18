@@ -1,7 +1,8 @@
 import { History } from 'lucide-react';
 import type { ApiAuditLogItem } from '@/lib/api';
 import type { Locale } from '@/lib/i18n';
-import { actionKindLabel, statusLabel } from '@/lib/presentation';
+import { translate } from "@/lib/i18n";
+import { actionKindLabel, statusLabel } from "@/lib/presentation";
 
 interface CaseTimelineProps {
   entries: ApiAuditLogItem[];
@@ -10,10 +11,18 @@ interface CaseTimelineProps {
   emptyLabel: string;
 }
 
-export function CaseTimeline({ entries, locale, title, emptyLabel }: CaseTimelineProps) {
+export function CaseTimeline({
+  entries,
+  locale,
+  title,
+  emptyLabel,
+}: CaseTimelineProps) {
   return (
     <section className="case-panel" aria-labelledby="timeline-title">
-      <div className="case-panel-title"><History size={18} aria-hidden="true" /><h2 id="timeline-title">{title}</h2></div>
+      <div className="case-panel-title">
+        <History size={18} aria-hidden="true" />
+        <h2 id="timeline-title">{title}</h2>
+      </div>
       {entries.length === 0 ? (
         <p className="decision-intro">{emptyLabel}</p>
       ) : (
@@ -23,14 +32,30 @@ export function CaseTimeline({ entries, locale, title, emptyLabel }: CaseTimelin
               <div className="timeline-meta">
                 <span className="timeline-actor">{entry.actor}</span>
                 <span className="timeline-at">
-                  {new Date(entry.at).toLocaleString(locale === 'pt' ? 'pt-PT' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {new Date(entry.at).toLocaleString(
+                    locale === "pt" ? "pt-PT" : "en-GB",
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
                 </span>
               </div>
               {entry.statusBefore && entry.statusAfter && (
-                <p className="timeline-transition">{statusLabel(locale, entry.statusBefore)} → {statusLabel(locale, entry.statusAfter)}</p>
+                <p className="timeline-transition">
+                  {statusLabel(locale, entry.statusBefore)} →{" "}
+                  {statusLabel(locale, entry.statusAfter)}
+                </p>
               )}
               <p className="timeline-reason">{entry.reason}</p>
-              {entry.actionKind && <span className="tag timeline-tag">{actionKindLabel(locale, entry.actionKind)}</span>}
+              {(entry.reasonSource === "ai-draft" ||
+                entry.reasonSource === "ai-edited") && (
+                <span className="status-badge">
+                  {translate(locale, "brief.aiReasonMarker")}
+                </span>
+              )}
+              {entry.actionKind && (
+                <span className="tag timeline-tag">
+                  {actionKindLabel(locale, entry.actionKind)}
+                </span>
+              )}
             </li>
           ))}
         </ol>

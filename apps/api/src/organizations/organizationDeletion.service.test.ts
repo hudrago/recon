@@ -24,6 +24,7 @@ function createTransaction(overrides: Record<string, unknown> = {}) {
     auditLogEntry: { count: vi.fn().mockResolvedValue(0) },
     processedOrder: { count: vi.fn().mockResolvedValue(0) },
     billingInvoice: { count: vi.fn().mockResolvedValue(0) },
+    caseBrief: { count: vi.fn().mockResolvedValue(0) },
     session: { updateMany: vi.fn() },
     ...overrides,
   };
@@ -193,6 +194,23 @@ describe("OrganizationDeletionService", () => {
   it("retains organizations with shipment tracking history", async () => {
     const transaction = createTransaction({
       shipmentRecord: { count: vi.fn().mockResolvedValue(1) },
+    });
+    const prisma = {
+      $transaction: vi.fn((callback) => callback(transaction)),
+    } as unknown as PrismaService;
+    await expect(
+      new OrganizationDeletionService(prisma).deleteEmptyOrganization(
+        "org_1",
+        "user_1",
+        "recon-test",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(transaction.organization.delete).not.toHaveBeenCalled();
+  });
+
+  it("retains organizations with cached AI case briefs", async () => {
+    const transaction = createTransaction({
+      caseBrief: { count: vi.fn().mockResolvedValue(1) },
     });
     const prisma = {
       $transaction: vi.fn((callback) => callback(transaction)),

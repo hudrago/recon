@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Check, ShieldCheck } from 'lucide-react';
-import { usePreferences } from '@/components/PreferencesProvider';
+import { Archive, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { usePreferences } from "@/components/PreferencesProvider";
 import {
   approveException,
   approveRestockException,
   approveWithoutTerms,
   dismissException,
+  draftReasonAction,
   executeIssueInvoiceAction,
   executeRefundAction,
   executeRestockAction,
@@ -30,13 +31,17 @@ export function CaseActions({
   code,
 }: CaseActionsProps) {
   const router = useRouter();
-  const { t } = usePreferences();
+  const { t, locale } = usePreferences();
   const isRefund = code === "REFUND_MISSING";
   const isRestock = code === "RESTOCK_MISSING";
   const isInvoice = code === "INVOICE_MISSING";
   const hasAutomatedAction = isRefund || isRestock || isInvoice;
   const [isPending, startTransition] = useTransition();
+  const [isDrafting, setIsDrafting] = useState(false);
   const [reason, setReason] = useState("");
+  const [reasonSource, setReasonSource] = useState<
+    "human" | "ai-draft" | "ai-edited"
+  >("human");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -98,16 +103,50 @@ export function CaseActions({
 
   function confirmApprove() {
     if (isRefund)
-      return approveException(orgId, exceptionId, reason, amount, currency);
+      return approveException(
+        orgId,
+        exceptionId,
+        reason,
+        amount,
+        currency,
+        reasonSource,
+      );
     if (isRestock)
-      return approveRestockException(orgId, exceptionId, reason, quantity);
-    return approveWithoutTerms(orgId, exceptionId, reason);
+      return approveRestockException(
+        orgId,
+        exceptionId,
+        reason,
+        quantity,
+        reasonSource,
+      );
+    return approveWithoutTerms(orgId, exceptionId, reason, reasonSource);
   }
 
   function confirmExecute() {
     if (isRefund) return executeRefundAction(orgId, exceptionId);
     if (isInvoice) return executeIssueInvoiceAction(orgId, exceptionId);
     return executeRestockAction(orgId, exceptionId);
+  }
+
+  // Drafts text only — the operator still reviews/edits the field before submitting.
+  async function suggestReason() {
+    setIsDrafting(true);
+    setError(null);
+    const result = await draftReasonAction(
+      orgId,
+      exceptionId,
+      "approve",
+      locale,
+    );
+    setIsDrafting(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    if (result.draft) {
+      setReason(result.draft);
+      setReasonSource("ai-draft");
+    }
   }
 
   if (status === "resolved" || status === "dismissed") {
@@ -204,10 +243,26 @@ export function CaseActions({
           {t("actions.reason")}
           <input
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setReasonSource((previous) =>
+                previous === "human" ? "human" : "ai-edited",
+              );
+            }}
             placeholder={t("actions.reasonPlaceholder")}
           />
         </label>
+        {status === "open" && (
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={isDrafting}
+            onClick={suggestReason}
+          >
+            <Sparkles size={15} aria-hidden="true" />{" "}
+            {isDrafting ? t("common.processing") : t("actions.suggestReason")}
+          </button>
+        )}
       </div>
       <div className="decision-actions">
         {status === "open" ? (
@@ -242,7 +297,9 @@ export function CaseActions({
           type="button"
           disabled={isPending || reason.trim().length === 0}
           onClick={() =>
-            runAction(() => dismissException(orgId, exceptionId, reason))
+            runAction(() =>
+              dismissException(orgId, exceptionId, reason, reasonSource),
+            )
           }
           className="button button-secondary"
         >

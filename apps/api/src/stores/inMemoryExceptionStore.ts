@@ -12,6 +12,7 @@ import {
   type ActionKind,
   type ActionSideEffect,
   type AuditLogEntry,
+  type CaseBrief,
   type ExceptionStore,
   type ExecutedActionResult,
   type PendingEvaluation,
@@ -39,6 +40,7 @@ export class InMemoryExceptionStore implements ExceptionStore {
     }
   >();
   private auditLog: AuditLogEntry[] = [];
+  private caseBriefs = new Map<string, CaseBrief>();
 
   async claimWebhook(
     provider: string,
@@ -72,7 +74,7 @@ export class InMemoryExceptionStore implements ExceptionStore {
     entry: AuditLogEntry,
   ): Promise<void> {
     this.exceptions.set(exception.id, exception);
-    this.auditLog.push(entry);
+    this.pushAudit(entry);
   }
 
   async listOpen(orgId: string): Promise<DomainException[]> {
@@ -295,7 +297,7 @@ export class InMemoryExceptionStore implements ExceptionStore {
       await this.saveAdjustment(sideEffect.adjustment);
     else await this.saveInvoice(sideEffect.invoice);
     this.exceptions.set(exception.id, exception);
-    this.auditLog.push(entry);
+    this.pushAudit(entry);
   }
 
   async failAction(idempotencyKey: string, error: string): Promise<void> {
@@ -305,7 +307,14 @@ export class InMemoryExceptionStore implements ExceptionStore {
   }
 
   async appendAuditLog(entry: AuditLogEntry): Promise<void> {
-    this.auditLog.push(entry);
+    this.pushAudit(entry);
+  }
+
+  private pushAudit(entry: AuditLogEntry): void {
+    this.auditLog.push({
+      ...entry,
+      reasonSource: entry.reasonSource ?? "human",
+    });
   }
 
   async getAuditLog(orgId: string): Promise<AuditLogEntry[]> {
@@ -318,6 +327,21 @@ export class InMemoryExceptionStore implements ExceptionStore {
   ): Promise<AuditLogEntry[]> {
     return this.auditLog.filter(
       (entry) => entry.orgId === orgId && entry.exceptionId === exceptionId,
+    );
+  }
+
+  async getCaseBrief(
+    orgId: string,
+    exceptionId: string,
+    locale: string,
+  ): Promise<CaseBrief | undefined> {
+    return this.caseBriefs.get(`${orgId}:${exceptionId}:${locale}`);
+  }
+
+  async saveCaseBrief(brief: CaseBrief): Promise<void> {
+    this.caseBriefs.set(
+      `${brief.orgId}:${brief.exceptionId}:${brief.locale}`,
+      brief,
     );
   }
 }

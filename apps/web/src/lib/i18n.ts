@@ -63,6 +63,10 @@ const messages = {
     "marketing.value.invoicing": "Faturação",
     "marketing.value.invoicingDescription":
       "Documentos em falta e valores desalinhados com a encomenda.",
+    "marketing.value.aiBrief": "Resumo por IA",
+    "marketing.value.aiBriefDescription":
+      "Um resumo do caso e uma recomendação para rever — a sua equipa decide sempre.",
+    "marketing.comingSoon": "Em breve",
     "marketing.process.eyebrow": "Como funciona",
     "marketing.process.title": "A Recon encontra o problema.",
     "marketing.process.titleAccent": "A sua equipa mantém o controlo.",
@@ -73,7 +77,7 @@ const messages = {
       "A Recon cruza continuamente encomendas, envios, devoluções e documentos fiscais entre os seus sistemas.",
     "marketing.process.decide": "Rever",
     "marketing.process.decideDescription":
-      "Cada problema chega à pessoa certa com a encomenda, o motivo e a ação recomendada.",
+      "Cada problema chega à pessoa certa com a encomenda, o motivo e a ação recomendada — em breve, com um resumo e uma sugestão gerados por IA para rever antes de decidir.",
     "marketing.process.execute": "Resolver",
     "marketing.process.executeDescription":
       "A sua equipa aprova a correção. A Recon executa-a uma única vez e regista tudo para auditoria.",
@@ -323,6 +327,12 @@ const messages = {
     "presentation.actionKind.RESTOCK": "Reposição de stock",
     "case.timeline": "Histórico",
     "case.timelineEmpty": "Ainda sem decisões registadas para este caso.",
+    "brief.title": "Resumo do caso",
+    "brief.aiMarker": "Gerado por IA · requer a sua aprovação",
+    "brief.recommendation": "Recomendação",
+    "brief.rationale": "Justificação",
+    "brief.aiReasonMarker": "Motivo sugerido por IA",
+    "actions.suggestReason": "Sugerir motivo",
   },
   en: {
     "preferences.language": "Language",
@@ -382,6 +392,10 @@ const messages = {
     "marketing.value.invoicing": "Invoicing",
     "marketing.value.invoicingDescription":
       "Missing documents and values that do not match the order.",
+    "marketing.value.aiBrief": "AI case brief",
+    "marketing.value.aiBriefDescription":
+      "A case summary and a recommendation to review — your team always decides.",
+    "marketing.comingSoon": "Coming soon",
     "marketing.process.eyebrow": "How it works",
     "marketing.process.title": "Recon finds the problem.",
     "marketing.process.titleAccent": "Your team stays in control.",
@@ -392,7 +406,7 @@ const messages = {
       "Recon continuously cross-checks orders, shipments, returns, and fiscal documents across your systems.",
     "marketing.process.decide": "Review",
     "marketing.process.decideDescription":
-      "Each problem reaches the right person with the order, the reason, and a recommended action.",
+      "Each problem reaches the right person with the order, the reason, and a recommended action — soon with an AI-generated summary and suggestion to review before deciding.",
     "marketing.process.execute": "Resolve",
     "marketing.process.executeDescription":
       "Your team approves the correction. Recon runs it once and records everything for audit.",
@@ -638,6 +652,12 @@ const messages = {
     "presentation.actionKind.RESTOCK": "Restock",
     "case.timeline": "Timeline",
     "case.timelineEmpty": "No decisions recorded for this case yet.",
+    "brief.title": "Case brief",
+    "brief.aiMarker": "AI-generated · requires your approval",
+    "brief.recommendation": "Recommendation",
+    "brief.rationale": "Rationale",
+    "brief.aiReasonMarker": "AI-suggested reason",
+    "actions.suggestReason": "Suggest reason",
   },
 } as const;
 

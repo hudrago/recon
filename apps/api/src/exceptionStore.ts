@@ -43,13 +43,34 @@ export interface AuditLogEntry {
   exceptionId?: string;
   actor: string;
   reason: string;
+  // Provenance of `reason` text — defaults to 'human' at the store layer when omitted. Only
+  // approve/dismiss ever set 'ai-draft'/'ai-edited'; every other audit entry (webhook
+  // resolutions, executed-action results) is system-authored text, tracked as 'human' here since
+  // it was never AI-drafted.
+  reasonSource?: "human" | "ai-draft" | "ai-edited";
   before: unknown;
   after: unknown;
   at: string;
 }
 
+// A cached AI-generated case brief — see aiGateway.ts and ai/buildBriefInput.ts. `inputHash` is
+// the cache key (sha256 of the redacted input + prompt version) so reopening a case with no new
+// audit activity never re-bills a model call.
+export interface CaseBrief {
+  orgId: string;
+  exceptionId: string;
+  locale: string;
+  summary: string;
+  recommendation: string;
+  rationale: string;
+  modelId: string;
+  promptVersion: string;
+  inputHash: string;
+  generatedAt: string;
+}
+
 // NestJS DI token — ExceptionStore is an interface, so there's no class to bind a provider to directly.
-export const EXCEPTION_STORE = Symbol('EXCEPTION_STORE');
+export const EXCEPTION_STORE = Symbol("EXCEPTION_STORE");
 
 export interface ExceptionStore {
   claimWebhook(
@@ -84,7 +105,10 @@ export interface ExceptionStore {
     orderId: string,
   ): Promise<DomainException | undefined>;
   saveAdjustment(adjustment: InventoryAdjustment): Promise<void>;
-  listAdjustments(orgId: string, orderId: string): Promise<InventoryAdjustment[]>;
+  listAdjustments(
+    orgId: string,
+    orderId: string,
+  ): Promise<InventoryAdjustment[]>;
   saveShipment(shipment: Shipment): Promise<void>;
   listActiveShipments(): Promise<Shipment[]>;
   claimAction(
@@ -103,6 +127,15 @@ export interface ExceptionStore {
   failAction(idempotencyKey: string, error: string): Promise<void>;
   appendAuditLog(entry: AuditLogEntry): Promise<void>;
   getAuditLog(orgId: string): Promise<AuditLogEntry[]>;
-  getAuditLogForException(orgId: string, exceptionId: string): Promise<AuditLogEntry[]>;
+  getAuditLogForException(
+    orgId: string,
+    exceptionId: string,
+  ): Promise<AuditLogEntry[]>;
+  getCaseBrief(
+    orgId: string,
+    exceptionId: string,
+    locale: string,
+  ): Promise<CaseBrief | undefined>;
+  saveCaseBrief(brief: CaseBrief): Promise<void>;
 }
 

@@ -6,7 +6,11 @@ import type {
   Invoice,
   Refund,
 } from "@recon/domain";
-import type { ExceptionStore, PendingEvaluation } from "../exceptionStore";
+import type {
+  CaseBrief,
+  ExceptionStore,
+  PendingEvaluation,
+} from "../exceptionStore";
 
 // Shared behavior contract for every ExceptionStore implementation. Run this against BOTH
 // InMemoryExceptionStore and PrismaExceptionStore so neither implementation silently diverges.
@@ -233,6 +237,44 @@ export function runExceptionStoreContract(
       expect(
         await store.listInvoices(`contract_${randomUUID()}`, orderId),
       ).toEqual([]);
+    });
+
+    it("saves and retrieves a case brief scoped to org, exception, and locale", async () => {
+      const orgId = `contract_${randomUUID()}`;
+      const exceptionId = `contract_${randomUUID()}`;
+      const brief: CaseBrief = {
+        orgId,
+        exceptionId,
+        locale: "pt",
+        summary: "Resumo do caso.",
+        recommendation: "Rever antes de aprovar.",
+        rationale: "Detetado ha 3 horas.",
+        modelId: "fake-ai-gateway",
+        promptVersion: "v1",
+        inputHash: "hash_1",
+        generatedAt: new Date().toISOString(),
+      };
+      await prepare(orgId);
+
+      expect(
+        await store.getCaseBrief(orgId, exceptionId, "pt"),
+      ).toBeUndefined();
+
+      await store.saveCaseBrief(brief);
+      expect(await store.getCaseBrief(orgId, exceptionId, "pt")).toEqual(brief);
+      expect(
+        await store.getCaseBrief(orgId, exceptionId, "en"),
+      ).toBeUndefined();
+
+      const updated: CaseBrief = {
+        ...brief,
+        summary: "Resumo atualizado.",
+        inputHash: "hash_2",
+      };
+      await store.saveCaseBrief(updated);
+      expect(await store.getCaseBrief(orgId, exceptionId, "pt")).toEqual(
+        updated,
+      );
     });
 
     it("upserts a shipment and lists it while active, excluding it once terminal", async () => {
@@ -583,6 +625,35 @@ export function runExceptionStoreContract(
 
       const result = await store.getAuditLogForException(orgId, exceptionId);
       expect(result.map((entry) => entry.reason)).toEqual(["first", "second"]);
+    });
+
+    it("persists an explicit reasonSource and defaults to human when omitted", async () => {
+      const orgId = `contract_${randomUUID()}`;
+      await prepare(orgId);
+
+      await store.appendAuditLog({
+        orgId,
+        actor: "operator",
+        reason: "drafted then edited",
+        reasonSource: "ai-edited",
+        before: {},
+        after: {},
+        at: new Date(Date.now() - 1000).toISOString(),
+      });
+      await store.appendAuditLog({
+        orgId,
+        actor: "operator",
+        reason: "typed by hand",
+        before: {},
+        after: {},
+        at: new Date().toISOString(),
+      });
+
+      const result = await store.getAuditLog(orgId);
+      expect(result.map((entry) => entry.reasonSource)).toEqual([
+        "ai-edited",
+        "human",
+      ]);
     });
   });
 }

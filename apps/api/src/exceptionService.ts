@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from "node:crypto";
 import type {
   DomainException,
   ExceptionCode,
@@ -26,6 +27,7 @@ import {
   type ActionKind,
   type ActionSideEffect,
   type AuditLogEntry,
+  type CaseBrief,
   type ExceptionStore,
   type ExecutedActionResult,
   type PendingEvaluation,
@@ -33,19 +35,40 @@ import {
 import { REFUND_GATEWAY, type RefundGateway } from "./refundGateway";
 import { RESTOCK_GATEWAY, type RestockGateway } from "./restockGateway";
 import { INVOICE_GATEWAY, type InvoiceGateway } from "./invoiceGateway";
+import {
+  AI_GATEWAY,
+  type AiGateway,
+  type ReasonDraftResult,
+  type SupportedLocale,
+} from "./aiGateway";
+import { buildBriefInput } from "./ai/buildBriefInput";
 
 export type { AuditLogEntry } from "./exceptionStore";
+
+// Bump whenever the brief/draft prompts change meaningfully — folded into the cache key so a
+// stale cached brief from an old prompt is never served as if it were current.
+const AI_PROMPT_VERSION = "v1";
 
 // The public shape of a case timeline entry — deliberately excludes the raw before/after JSON
 // blobs (which can carry PII/order data) from ever reaching the browser; see getAuditLogForException.
 export interface AuditLogItem {
   actor: string;
   reason: string;
+  reasonSource?: string;
   at: string;
   statusBefore?: string;
   statusAfter?: string;
   actionKind?: string;
   result?: unknown;
+}
+
+// Cache key for a CaseBrief/reason draft: hashes the fully-redacted input (never the raw
+// exception/audit), so identical inputs never re-call the AI gateway, and any prompt-version
+// bump automatically invalidates every previously cached brief.
+function hashAiInput(input: unknown): string {
+  return createHash("sha256")
+    .update(`${AI_PROMPT_VERSION}:${JSON.stringify(input)}`)
+    .digest("hex");
 }
 
 function extractStatus(value: unknown): string | undefined {
@@ -101,6 +124,7 @@ export class ExceptionService {
     @Inject(REFUND_GATEWAY) private readonly refundGateway: RefundGateway,
     @Inject(RESTOCK_GATEWAY) private readonly restockGateway: RestockGateway,
     @Inject(INVOICE_GATEWAY) private readonly invoiceGateway: InvoiceGateway,
+    @Inject(AI_GATEWAY) private readonly aiGateway: AiGateway,
   ) {}
 
   async claimWebhook(
@@ -374,6 +398,7 @@ export class ExceptionService {
     reason: string,
     refundTerms?: RefundApprovalTerms,
     restockTerms?: RestockApprovalTerms,
+    reasonSource?: AuditLogEntry["reasonSource"],
   ): Promise<void> {
     const exception = await this.requireException(exceptionId);
     if (exception.status !== "open")
@@ -399,6 +424,7 @@ export class ExceptionService {
       exceptionId: exception.id,
       actor,
       reason,
+      reasonSource,
       before: exception,
       after,
       at: new Date().toISOString(),
@@ -409,6 +435,7 @@ export class ExceptionService {
     exceptionId: string,
     actor: string,
     reason: string,
+    reasonSource?: AuditLogEntry["reasonSource"],
   ): Promise<void> {
     const exception = await this.requireException(exceptionId);
     const after: DomainException = { ...exception, status: "dismissed" };
@@ -417,6 +444,7 @@ export class ExceptionService {
       exceptionId: exception.id,
       actor,
       reason,
+      reasonSource,
       before: exception,
       after,
       at: new Date().toISOString(),
@@ -706,6 +734,7 @@ export class ExceptionService {
       return {
         actor: entry.actor,
         reason: entry.reason,
+        reasonSource: entry.reasonSource,
         at: entry.at,
         statusBefore: extractStatus(entry.before),
         statusAfter: extractStatus(entry.after),
@@ -726,5 +755,58 @@ export class ExceptionService {
     const exception = await this.store.get(exceptionId);
     if (!exception) throw new Error(`Unknown exception: ${exceptionId}`);
     return exception;
+  }
+
+  // Read-only w.r.t. the exception: never touches `status`, never claims an ActionKind lease.
+  // Caches by inputHash (redacted input + prompt version) so reopening a case with no new audit
+  // activity never re-calls the AI gateway. `orgId` scopes the cache row; callers MUST have
+  // already verified the exception belongs to this org (see ExceptionsController.getExceptionForOrg).
+  async getCaseBrief(
+    orgId: string,
+    exceptionId: string,
+    locale: SupportedLocale,
+  ): Promise<CaseBrief> {
+    const exception = await this.requireException(exceptionId);
+    const audit = await this.getAuditLogForException(orgId, exceptionId);
+    const input = buildBriefInput(exception, audit, locale);
+    const inputHash = hashAiInput(input);
+
+    const cached = await this.store.getCaseBrief(orgId, exceptionId, locale);
+    if (cached && cached.inputHash === inputHash) return cached;
+
+    const result = await this.aiGateway.summarizeCase(input);
+    const brief: CaseBrief = {
+      orgId,
+      exceptionId,
+      locale,
+      summary: result.summary,
+      recommendation: result.recommendation,
+      rationale: result.rationale,
+      modelId: result.modelId,
+      promptVersion: AI_PROMPT_VERSION,
+      inputHash,
+      generatedAt: new Date().toISOString(),
+    };
+    await this.store.saveCaseBrief(brief);
+    return brief;
+  }
+
+  // Same read-only guarantee as getCaseBrief: never mutates the exception, never touches actions.
+  async draftReason(
+    orgId: string,
+    exceptionId: string,
+    intent: "approve" | "dismiss",
+    locale: SupportedLocale,
+  ): Promise<ReasonDraftResult> {
+    const exception = await this.requireException(exceptionId);
+    const audit = await this.getAuditLogForException(orgId, exceptionId);
+    const input = buildBriefInput(exception, audit, locale);
+    return this.aiGateway.draftReason({
+      locale,
+      intent,
+      code: exception.code,
+      orderId: exception.orderId,
+      contextFacts: input.contextFacts,
+    });
   }
 }

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock3, FileSearch, ShoppingBag } from 'lucide-react';
-import { getException, getExceptionAudit } from "@/lib/api";
+import { getCaseBrief, getException, getExceptionAudit } from "@/lib/api";
 import { decodeExceptionRouteId } from "@/lib/exception-route";
 import {
   exceptionDescription,
@@ -12,6 +12,7 @@ import {
 import { getTranslations } from "@/lib/server-i18n";
 import { requireActiveOrganization } from "@/lib/session";
 import { CaseActions } from "./CaseActions";
+import { CaseBrief } from "./CaseBrief";
 import { CaseTimeline } from "./CaseTimeline";
 
 export default async function CaseDetailPage({
@@ -26,6 +27,7 @@ export default async function CaseDetailPage({
   const exception = await getException(orgId, id);
   if (!exception) notFound();
   const audit = await getExceptionAudit(orgId, exception.id);
+  const brief = await getCaseBrief(orgId, exception.id, locale);
 
   return (
     <main className="app-main case-main">
@@ -49,6 +51,14 @@ export default async function CaseDetailPage({
           <strong>{exception.orderId}</strong>
         </div>
       </div>
+
+      <CaseBrief
+        brief={brief}
+        title={t("brief.title")}
+        aiMarker={t("brief.aiMarker")}
+        recommendationLabel={t("brief.recommendation")}
+        rationaleLabel={t("brief.rationale")}
+      />
 
       <div className="case-grid">
         <section className="case-panel" aria-labelledby="context-title">

@@ -1,16 +1,37 @@
-import { Body, Controller, Get, HttpCode, Inject, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
-import type { DomainException } from '@recon/domain';
-import { z } from 'zod';
-import { ZodValidationPipe } from '../common/zodValidationPipe';
-import type { AuthenticatedRequest } from '../auth/auth.types';
-import { OrgGuard } from '../auth/org.guard';
-import { BillingActionGuard } from '../billing/billing.guard';
-import { ExceptionService } from '../exceptionService';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import type { DomainException } from "@recon/domain";
+import { z } from "zod";
+import { ZodValidationPipe } from "../common/zodValidationPipe";
+import type { AuthenticatedRequest } from "../auth/auth.types";
+import { OrgGuard } from "../auth/org.guard";
+import { BillingActionGuard } from "../billing/billing.guard";
+import type { SupportedLocale } from "../aiGateway";
+import { ExceptionService } from "../exceptionService";
 
-const dismissSchema = z.object({ reason: z.string().min(1) });
+const reasonSourceSchema = z
+  .enum(["human", "ai-draft", "ai-edited"])
+  .default("human");
+
+const dismissSchema = z.object({
+  reason: z.string().min(1),
+  reasonSource: reasonSourceSchema,
+});
 const approveSchema = z
   .object({
     reason: z.string().min(1),
+    reasonSource: reasonSourceSchema,
     amountMinor: z.number().int().positive().safe().optional(),
     currency: z
       .string()
@@ -29,6 +50,16 @@ const approveSchema = z
 const refundActionSchema = z.object({}).strict();
 const restockActionSchema = z.object({}).strict();
 const invoiceActionSchema = z.object({}).strict();
+const reasonDraftSchema = z
+  .object({
+    intent: z.enum(["approve", "dismiss"]),
+    locale: z.enum(["pt", "en"]).optional(),
+  })
+  .strict();
+
+function resolveLocale(locale: string | undefined): SupportedLocale {
+  return locale === "en" ? "en" : "pt";
+}
 
 @Controller("orgs/:orgId/exceptions")
 @UseGuards(OrgGuard)
@@ -61,6 +92,40 @@ export class ExceptionsController {
     return this.exceptions.getAuditLogForException(orgId, exceptionId);
   }
 
+  // AI-generated, advisory only (requiresApproval: true on the result) — never mutates the
+  // exception and consumes no action entitlement, so no BillingActionGuard.
+  @Get(":exceptionId/brief")
+  async getBrief(
+    @Param("orgId") orgId: string,
+    @Param("exceptionId") exceptionId: string,
+    @Query("locale") locale: string | undefined,
+  ) {
+    await this.getExceptionForOrg(exceptionId, orgId);
+    return this.exceptions.getCaseBrief(
+      orgId,
+      exceptionId,
+      resolveLocale(locale),
+    );
+  }
+
+  // Drafts text only — the operator still reviews/edits/submits via approve or dismiss.
+  @Post(":exceptionId/reason-draft")
+  @HttpCode(200)
+  async draftReason(
+    @Param("orgId") orgId: string,
+    @Param("exceptionId") exceptionId: string,
+    @Body(new ZodValidationPipe(reasonDraftSchema))
+    body: z.infer<typeof reasonDraftSchema>,
+  ) {
+    await this.getExceptionForOrg(exceptionId, orgId);
+    return this.exceptions.draftReason(
+      orgId,
+      exceptionId,
+      body.intent,
+      resolveLocale(body.locale),
+    );
+  }
+
   @Post(":exceptionId/approve")
   @HttpCode(200)
   async approve(
@@ -79,6 +144,7 @@ export class ExceptionsController {
         ? { amountMinor: body.amountMinor, currency: body.currency }
         : undefined,
       body.quantity !== undefined ? { quantity: body.quantity } : undefined,
+      body.reasonSource,
     );
     return { status: "approved" };
   }
@@ -97,6 +163,7 @@ export class ExceptionsController {
       exceptionId,
       request.auth!.user.id,
       body.reason,
+      body.reasonSource,
     );
     return { status: "dismissed" };
   }

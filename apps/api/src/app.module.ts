@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
-import { AUTH_SESSION_PROVIDER, MEMBERSHIP_STORE } from './auth/auth.types';
-import { BetterAuthService } from './auth/betterAuth.service';
-import { DisabledAuthSessionProvider, DisabledMembershipStore } from './auth/disabledAuthProviders';
-import { OrgGuard } from './auth/org.guard';
-import { PrismaMembershipStore } from './auth/prismaMembershipStore';
+import { AI_GATEWAY } from "./aiGateway";
+import { AUTH_SESSION_PROVIDER, MEMBERSHIP_STORE } from "./auth/auth.types";
+import { BetterAuthService } from "./auth/betterAuth.service";
+import {
+  DisabledAuthSessionProvider,
+  DisabledMembershipStore,
+} from "./auth/disabledAuthProviders";
+import { OrgGuard } from "./auth/org.guard";
+import { PrismaMembershipStore } from "./auth/prismaMembershipStore";
 import { BillingController } from "./billing/billing.controller";
 import { BillingActionGuard } from "./billing/billing.guard";
 import { BillingService } from "./billing/billing.service";
@@ -20,6 +24,8 @@ import {
 import { ExceptionsController } from "./exceptions/exceptions.controller";
 import { ExceptionService } from "./exceptionService";
 import { EXCEPTION_STORE } from "./exceptionStore";
+import { FakeAiGateway } from "./gateways/fakeAiGateway";
+import { OpenAiGateway } from "./gateways/openAiGateway";
 import { FakeRefundGateway } from "./gateways/fakeRefundGateway";
 import { FakeRestockGateway } from "./gateways/fakeRestockGateway";
 import { FakeStripeGateway } from "./gateways/fakeStripeGateway";
@@ -73,6 +79,14 @@ const useCarrierTracking = Boolean(
 // Falls back to a fake invoice gateway (no network call) when InvoiceXpress credentials aren't set.
 const useInvoiceXpress = Boolean(
   process.env.INVOICEXPRESS_API_KEY && process.env.INVOICEXPRESS_ACCOUNT_NAME,
+);
+
+// Falls back to a fake AI gateway (no network call, deterministic output) until AI is explicitly
+// enabled with OpenAI credentials — see config.ts for the EU-residency guardrail on the base URL.
+const useAi = Boolean(
+  process.env.AI_ENABLED &&
+  process.env.OPENAI_API_KEY &&
+  process.env.OPENAI_MODEL,
 );
 
 @Module({
@@ -155,6 +169,17 @@ const useInvoiceXpress = Boolean(
             ),
         }
       : { provide: INVOICE_GATEWAY, useClass: FakeInvoiceGateway },
+    useAi
+      ? {
+          provide: AI_GATEWAY,
+          useFactory: () =>
+            new OpenAiGateway(
+              process.env.OPENAI_API_KEY!,
+              process.env.OPENAI_MODEL!,
+              process.env.OPENAI_BASE_URL ?? "https://eu.api.openai.com/v1",
+            ),
+        }
+      : { provide: AI_GATEWAY, useClass: FakeAiGateway },
     { provide: CARRIER_TRACKING_GATEWAY, useClass: FakeCarrierTrackingGateway },
     ExceptionService,
     BillingService,

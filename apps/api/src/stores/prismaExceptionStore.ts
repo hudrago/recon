@@ -16,6 +16,7 @@ import {
   type ActionKind,
   type ActionSideEffect,
   type AuditLogEntry,
+  type CaseBrief,
   type ExceptionStore,
   type ExecutedActionResult,
   type PendingEvaluation,
@@ -150,6 +151,7 @@ export class PrismaExceptionStore implements ExceptionStore {
           exceptionId: entry.exceptionId,
           actor: entry.actor,
           reason: entry.reason,
+          reasonSource: entry.reasonSource ?? "human",
           before: entry.before as object,
           after: entry.after as object,
           at: new Date(entry.at),
@@ -569,6 +571,7 @@ export class PrismaExceptionStore implements ExceptionStore {
           exceptionId: entry.exceptionId,
           actor: entry.actor,
           reason: entry.reason,
+          reasonSource: entry.reasonSource ?? "human",
           before: entry.before as object,
           after: entry.after as object,
           at: new Date(entry.at),
@@ -591,6 +594,7 @@ export class PrismaExceptionStore implements ExceptionStore {
         exceptionId: entry.exceptionId,
         actor: entry.actor,
         reason: entry.reason,
+        reasonSource: entry.reasonSource ?? "human",
         before: entry.before as object,
         after: entry.after as object,
         at: new Date(entry.at),
@@ -608,6 +612,7 @@ export class PrismaExceptionStore implements ExceptionStore {
       exceptionId: record.exceptionId ?? undefined,
       actor: record.actor,
       reason: record.reason,
+      reasonSource: record.reasonSource as AuditLogEntry["reasonSource"],
       before: record.before,
       after: record.after,
       at: record.at.toISOString(),
@@ -627,9 +632,44 @@ export class PrismaExceptionStore implements ExceptionStore {
       exceptionId: record.exceptionId ?? undefined,
       actor: record.actor,
       reason: record.reason,
+      reasonSource: record.reasonSource as AuditLogEntry["reasonSource"],
       before: record.before,
       after: record.after,
       at: record.at.toISOString(),
     }));
+  }
+
+  async getCaseBrief(
+    orgId: string,
+    exceptionId: string,
+    locale: string,
+  ): Promise<CaseBrief | undefined> {
+    const record = await this.prisma.caseBrief.findUnique({
+      where: { orgId_exceptionId_locale: { orgId, exceptionId, locale } },
+    });
+    if (!record) return undefined;
+    return { ...record, generatedAt: record.generatedAt.toISOString() };
+  }
+
+  async saveCaseBrief(brief: CaseBrief): Promise<void> {
+    await this.prisma.caseBrief.upsert({
+      where: {
+        orgId_exceptionId_locale: {
+          orgId: brief.orgId,
+          exceptionId: brief.exceptionId,
+          locale: brief.locale,
+        },
+      },
+      create: { ...brief, generatedAt: new Date(brief.generatedAt) },
+      update: {
+        summary: brief.summary,
+        recommendation: brief.recommendation,
+        rationale: brief.rationale,
+        modelId: brief.modelId,
+        promptVersion: brief.promptVersion,
+        inputHash: brief.inputHash,
+        generatedAt: new Date(brief.generatedAt),
+      },
+    });
   }
 }

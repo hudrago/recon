@@ -89,6 +89,7 @@ model Organization {
   webhookReceipts    WebhookReceipt[]
   executedActions    ExecutedAction[]
   auditLogEntries    AuditLogEntry[]
+  caseBriefs         CaseBrief[]
   subscription       Subscription?
   processedOrders    ProcessedOrder[]
   billingInvoices    BillingInvoice[]
@@ -211,6 +212,23 @@ model ShipmentRecord {
   @@map("shipment_records")
 }
 
+model CaseBrief {
+  orgId         String
+  exceptionId   String
+  locale        String
+  summary       String
+  recommendation String
+  rationale     String
+  modelId       String
+  promptVersion String
+  inputHash     String
+  generatedAt   DateTime @default(now())
+  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@id([orgId, exceptionId, locale])
+  @@map("case_briefs")
+}
+
 model WebhookReceipt {
   provider   String
   eventId    String
@@ -250,6 +268,7 @@ model AuditLogEntry {
   exceptionId  String?
   actor        String
   reason       String
+  reasonSource String   @default("human")
   before       Json
   after        Json
   at           DateTime @default(now())

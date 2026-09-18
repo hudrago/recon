@@ -9,6 +9,7 @@ import {
   RESTOCK_MISSING_THRESHOLD_MS,
 } from "@recon/domain";
 import { AppModule } from "../app.module";
+import { AI_GATEWAY } from "../aiGateway";
 import { AUTH_SESSION_PROVIDER, MEMBERSHIP_STORE } from "../auth/auth.types";
 import { BILLING_STORE } from "../billing/billingStore";
 import { InMemoryBillingStore } from "../billing/inMemoryBillingStore";
@@ -17,6 +18,7 @@ import { EXCEPTION_STORE } from "../exceptionStore";
 import { FakeRefundGateway } from "../gateways/fakeRefundGateway";
 import { FakeRestockGateway } from "../gateways/fakeRestockGateway";
 import { FakeInvoiceGateway } from "../gateways/fakeInvoiceGateway";
+import { FakeAiGateway } from "../gateways/fakeAiGateway";
 import { PrismaService } from "../prisma.service";
 import { REFUND_GATEWAY } from "../refundGateway";
 import { RESTOCK_GATEWAY } from "../restockGateway";
@@ -50,6 +52,8 @@ describe("ExceptionsController (http)", () => {
       .useClass(FakeRestockGateway)
       .overrideProvider(INVOICE_GATEWAY)
       .useClass(FakeInvoiceGateway)
+      .overrideProvider(AI_GATEWAY)
+      .useClass(FakeAiGateway)
       .overrideProvider(AUTH_SESSION_PROVIDER)
       .useValue({ getSession })
       .overrideProvider(MEMBERSHIP_STORE)
@@ -264,6 +268,87 @@ describe("ExceptionsController (http)", () => {
     expect(response.body.invoiceId).toBe(`invoice_invoice:${exception.id}`);
   });
 
+  it("returns an AI case brief without changing the exception status", async () => {
+    await exceptions.ingestReturn(returnRecord, [], now);
+    const [exception] = await exceptions.listOpenExceptions("org_1");
+
+    const response = await request(app.getHttpServer())
+      .get(`/orgs/org_1/exceptions/${exception.id}/brief`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      orgId: "org_1",
+      exceptionId: exception.id,
+      locale: "pt",
+    });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get(`/orgs/org_1/exceptions/${exception.id}`)
+          .expect(200)
+      ).body.status,
+    ).toBe("open");
+  });
+
+  it("returns a draft reason marked requiresApproval, without changing the exception status", async () => {
+    await exceptions.ingestReturn(returnRecord, [], now);
+    const [exception] = await exceptions.listOpenExceptions("org_1");
+
+    const response = await request(app.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/reason-draft`)
+      .send({ intent: "approve" })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ requiresApproval: true });
+    expect(typeof response.body.draft).toBe("string");
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get(`/orgs/org_1/exceptions/${exception.id}`)
+          .expect(200)
+      ).body.status,
+    ).toBe("open");
+  });
+
+  it("records reasonSource on the audit entry when approving with an AI-drafted reason", async () => {
+    await exceptions.ingestReturn(returnRecord, [], now);
+    const [exception] = await exceptions.listOpenExceptions("org_1");
+
+    await request(app.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/approve`)
+      .send({
+        reason: "Approved from an AI-suggested draft",
+        reasonSource: "ai-draft",
+        amountMinor: 1000,
+        currency: "EUR",
+      })
+      .expect(200);
+
+    const audit = await request(app.getHttpServer())
+      .get(`/orgs/org_1/exceptions/${exception.id}/audit`)
+      .expect(200);
+    expect(audit.body[0]).toMatchObject({ reasonSource: "ai-draft" });
+  });
+
+  it("defaults reasonSource to human when the client omits it", async () => {
+    await exceptions.ingestReturn(returnRecord, [], now);
+    const [exception] = await exceptions.listOpenExceptions("org_1");
+
+    await request(app.getHttpServer())
+      .post(`/orgs/org_1/exceptions/${exception.id}/approve`)
+      .send({
+        reason: "Typed by the operator",
+        amountMinor: 1000,
+        currency: "EUR",
+      })
+      .expect(200);
+
+    const audit = await request(app.getHttpServer())
+      .get(`/orgs/org_1/exceptions/${exception.id}/audit`)
+      .expect(200);
+    expect(audit.body[0]).toMatchObject({ reasonSource: "human" });
+  });
+
   it("blocks refund execution once the organization has no remaining action entitlement", async () => {
     const readOnlySubscription = {
       orgId: "org_1",
@@ -289,6 +374,8 @@ describe("ExceptionsController (http)", () => {
       .useClass(FakeRestockGateway)
       .overrideProvider(INVOICE_GATEWAY)
       .useClass(FakeInvoiceGateway)
+      .overrideProvider(AI_GATEWAY)
+      .useClass(FakeAiGateway)
       .overrideProvider(AUTH_SESSION_PROVIDER)
       .useValue({ getSession })
       .overrideProvider(MEMBERSHIP_STORE)

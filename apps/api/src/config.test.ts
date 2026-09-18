@@ -62,4 +62,36 @@ describe('validateEnvironment', () => {
       }),
     ).toMatchObject({ BILLING_ENABLED: true });
   });
+
+  it("rejects production startup when AI is enabled without an API key and model", () => {
+    expect(() =>
+      validateEnvironment({ ...productionBase, AI_ENABLED: "true" }),
+    ).toThrow(/OPENAI_API_KEY/);
+  });
+
+  it("rejects production startup when OPENAI_BASE_URL is not the EU regional endpoint", () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        AI_ENABLED: "true",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-5.6-terra",
+        OPENAI_BASE_URL: "https://api.openai.com/v1",
+      }),
+    ).toThrow(/EU regional endpoint/);
+  });
+
+  it("accepts production startup when AI is enabled with an EU base URL", () => {
+    expect(
+      validateEnvironment({
+        ...productionBase,
+        AI_ENABLED: "true",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-5.6-terra",
+      }),
+    ).toMatchObject({
+      AI_ENABLED: true,
+      OPENAI_BASE_URL: "https://eu.api.openai.com/v1",
+    });
+  });
 });
